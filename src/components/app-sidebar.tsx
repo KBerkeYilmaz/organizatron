@@ -6,17 +6,13 @@ import {
   FolderKanban,
   LayoutDashboard,
   ListTodo,
-  Moon,
   Settings,
-  Sun,
   Timer,
 } from "lucide-react";
-import { useTheme } from "next-themes";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { Avatar, AvatarFallback } from "~/components/ui/avatar";
-import { Button } from "~/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,8 +31,8 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from "~/components/ui/sidebar";
-import { cn } from "~/lib/utils";
 
 const navigation = [
   {
@@ -68,53 +64,46 @@ const navigation = [
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { theme, setTheme } = useTheme();
 
   return (
-    <Sidebar className="border-r border-sidebar-border">
-      <SidebarHeader className="h-[65px] border-b border-sidebar-border px-4">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
-            <Timer className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-lg font-semibold leading-tight tracking-tight">
-              Organizatron
-            </span>
-            <span className="text-xs text-muted-foreground">
-              Task & Time Tracker
-            </span>
-          </div>
-        </Link>
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
+      <SidebarHeader className="h-[65px] justify-center border-b border-sidebar-border">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              size="lg"
+              tooltip="Organizatron"
+              className="hover:bg-transparent active:bg-transparent data-[state=open]:hover:bg-transparent"
+            >
+              <Link href="/">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary">
+                  <Timer className="size-4 text-primary-foreground" />
+                </div>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold">Organizatron</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    Task & Time Tracker
+                  </span>
+                </div>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent className="px-2 py-4">
+      <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="px-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Navigation
-          </SidebarGroupLabel>
+          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navigation.map((item) => {
                 const isActive = pathname === item.href;
                 return (
                   <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive}
-                      className={cn(
-                        "transition-all duration-200",
-                        isActive &&
-                          "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-                      )}
-                    >
+                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.title}>
                       <Link href={item.href}>
-                        <item.icon
-                          className={cn(
-                            "h-4 w-4",
-                            isActive && "text-primary"
-                          )}
-                        />
+                        <item.icon />
                         <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
@@ -126,50 +115,56 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border p-2">
-        <div className="flex items-center justify-between px-2 py-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="h-8 w-8"
-          >
-            <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-            <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-            <span className="sr-only">Toggle theme</span>
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <Settings className="h-4 w-4" />
-            <span className="sr-only">Settings</span>
-          </Button>
-        </div>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <SidebarMenuButton className="w-full justify-between">
-              <div className="flex items-center gap-2">
-                <Avatar className="h-7 w-7">
-                  <AvatarFallback className="bg-primary/10 text-xs font-medium text-primary">
-                    BK
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex flex-col items-start text-sm">
-                  <span className="font-medium">Berke</span>
-                  <span className="text-xs text-muted-foreground">
-                    Personal Workspace
-                  </span>
-                </div>
-              </div>
-              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Settings">
+              <Link href="/settings">
+                <Settings />
+                <span>Settings</span>
+              </Link>
             </SidebarMenuButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem>Profile</DropdownMenuItem>
-            <DropdownMenuItem>Billing</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>Sign out</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
+
+        <SidebarSeparator />
+
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton
+                  size="lg"
+                  tooltip="Berke - Personal Workspace"
+                >
+                  <Avatar className="size-8 rounded-lg">
+                    <AvatarFallback className="rounded-lg bg-primary/10 text-xs font-medium text-primary">
+                      BK
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-semibold">Berke</span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      Personal Workspace
+                    </span>
+                  </div>
+                  <ChevronUp className="ml-auto size-4" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                side="top"
+                align="end"
+                sideOffset={4}
+                className="w-56"
+              >
+                <DropdownMenuItem>Profile</DropdownMenuItem>
+                <DropdownMenuItem>Billing</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>Sign out</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   );
