@@ -1,8 +1,7 @@
-// Prisma 6 Schema - Organizatron
+// Prisma 7 Schema - Organizatron
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {

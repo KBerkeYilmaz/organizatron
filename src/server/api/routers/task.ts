@@ -101,7 +101,8 @@ export const taskRouter = createTRPCRouter({
       const updateData: typeof data & { completedAt?: Date | null } = { ...data };
       if (data.status === "completed") {
         updateData.completedAt = new Date();
-      } else if (data.status && data.status !== "completed") {
+      } else if (data.status) {
+        // Clear completedAt when moving to any non-completed status
         updateData.completedAt = null;
       }
 
