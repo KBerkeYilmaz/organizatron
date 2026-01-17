@@ -5,6 +5,7 @@ import { ClientTimeSummary } from "~/components/client-time-summary";
 import { ProjectsOverview } from "~/components/projects-overview";
 import { QuickAdd } from "~/components/quick-add";
 import { RecentActivity } from "~/components/recent-activity";
+import { TaskTimeEntries } from "~/components/task-time-entries";
 import { ThemeToggle } from "~/components/theme-toggle";
 import { TodayTasks } from "~/components/today-tasks";
 import { SidebarTrigger } from "~/components/ui/sidebar";
@@ -55,6 +56,7 @@ export default function DashboardPage() {
             {/* Right Column - Time Summary, Projects & Activity */}
             <div className="space-y-8 lg:col-span-2">
               <ClientTimeSummary />
+              <TaskTimeEntries />
               <ProjectsOverview />
               <RecentActivity />
             </div>

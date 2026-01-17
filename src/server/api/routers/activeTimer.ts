@@ -74,6 +74,13 @@ export const activeTimerRouter = createTRPCRouter({
       });
     }
 
+    if (timer.isPaused) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Timer is already paused",
+      });
+    }
+
     // Calculate elapsed time since start
     const now = new Date();
     const elapsedSinceStart = Math.floor(
@@ -85,7 +92,7 @@ export const activeTimerRouter = createTRPCRouter({
       where: { id: timer.id },
       data: {
         elapsed: totalElapsed,
-        startTime: now, // Reset start time for resume calculation
+        isPaused: true,
       },
       include: {
         task: {
@@ -110,10 +117,18 @@ export const activeTimerRouter = createTRPCRouter({
       });
     }
 
+    if (!timer.isPaused) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Timer is not paused",
+      });
+    }
+
     return ctx.db.activeTimer.update({
       where: { id: timer.id },
       data: {
         startTime: new Date(), // Reset start time to now
+        isPaused: false,
       },
       include: {
         task: {
@@ -138,12 +153,15 @@ export const activeTimerRouter = createTRPCRouter({
       });
     }
 
-    // Calculate total duration
+    // Calculate total duration (if paused, elapsed is already final)
     const now = new Date();
-    const elapsedSinceStart = Math.floor(
-      (now.getTime() - timer.startTime.getTime()) / 1000
-    );
-    const totalDuration = timer.elapsed + elapsedSinceStart;
+    let totalDuration = timer.elapsed;
+    if (!timer.isPaused) {
+      const elapsedSinceStart = Math.floor(
+        (now.getTime() - timer.startTime.getTime()) / 1000
+      );
+      totalDuration = timer.elapsed + elapsedSinceStart;
+    }
 
     // Create time entry
     const timeEntry = await ctx.db.timeEntry.create({

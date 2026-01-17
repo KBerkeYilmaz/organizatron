@@ -52,6 +52,66 @@ export const timeEntryRouter = createTRPCRouter({
       });
     }),
 
+  // Get recent entries grouped by task with all working periods
+  getRecentGroupedByTask: publicProcedure
+    .input(
+      z.object({
+        limit: z.number().int().positive().default(10),
+        days: z.number().int().positive().default(7),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - input.days);
+      startDate.setHours(0, 0, 0, 0);
+
+      const entries = await ctx.db.timeEntry.findMany({
+        where: {
+          startTime: { gte: startDate },
+        },
+        orderBy: { startTime: "desc" },
+        include: {
+          task: {
+            include: {
+              project: {
+                include: { client: true },
+              },
+            },
+          },
+        },
+      });
+
+      // Group by task
+      const grouped = entries.reduce(
+        (acc, entry) => {
+          const taskId = entry.taskId;
+          if (!acc[taskId]) {
+            acc[taskId] = {
+              task: entry.task,
+              entries: [],
+              totalDuration: 0,
+            };
+          }
+          acc[taskId].entries.push(entry);
+          acc[taskId].totalDuration += entry.duration;
+          return acc;
+        },
+        {} as Record<
+          string,
+          {
+            task: typeof entries[0]["task"];
+            entries: typeof entries;
+            totalDuration: number;
+          }
+        >
+      );
+
+      // Convert to array and sort by total duration
+      return Object.values(grouped)
+        .sort((a, b) => b.totalDuration - a.totalDuration)
+        .slice(0, input.limit);
+    }),
+
   getByTaskId: publicProcedure
     .input(z.object({ taskId: z.string() }))
     .query(async ({ ctx, input }) => {

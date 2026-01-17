@@ -41,6 +41,7 @@ const mockActiveTimer = {
   taskId: "task-1",
   startTime: new Date("2024-01-15T09:00:00Z"),
   elapsed: 0,
+  isPaused: false,
   createdAt: new Date(),
   updatedAt: new Date(),
   task: mockTask,
@@ -126,12 +127,14 @@ describe("activeTimerRouter", () => {
         ...mockActiveTimer,
         startTime: new Date(Date.now() - 3600000), // 1 hour ago
         elapsed: 1800, // 30 min already elapsed
+        isPaused: false,
       };
 
       prismaMock.activeTimer.findFirst.mockResolvedValue(runningTimer);
       prismaMock.activeTimer.update.mockResolvedValue({
         ...runningTimer,
         elapsed: expect.any(Number),
+        isPaused: true,
       });
 
       const caller = createTestCaller();
@@ -141,7 +144,7 @@ describe("activeTimerRouter", () => {
         where: { id: "timer-1" },
         data: {
           elapsed: expect.any(Number),
-          startTime: expect.any(Date),
+          isPaused: true,
         },
         include: expect.any(Object),
       });
@@ -156,6 +159,22 @@ describe("activeTimerRouter", () => {
         "No active timer to pause"
       );
     });
+
+    it("throws error when timer is already paused", async () => {
+      const pausedTimer = {
+        ...mockActiveTimer,
+        isPaused: true,
+        elapsed: 1800,
+      };
+
+      prismaMock.activeTimer.findFirst.mockResolvedValue(pausedTimer);
+
+      const caller = createTestCaller();
+
+      await expect(caller.activeTimer.pause()).rejects.toThrow(
+        "Timer is already paused"
+      );
+    });
   });
 
   describe("resume", () => {
@@ -163,12 +182,14 @@ describe("activeTimerRouter", () => {
       const pausedTimer = {
         ...mockActiveTimer,
         elapsed: 1800,
+        isPaused: true,
       };
 
       prismaMock.activeTimer.findFirst.mockResolvedValue(pausedTimer);
       prismaMock.activeTimer.update.mockResolvedValue({
         ...pausedTimer,
         startTime: new Date(),
+        isPaused: false,
       });
 
       const caller = createTestCaller();
@@ -178,6 +199,7 @@ describe("activeTimerRouter", () => {
         where: { id: "timer-1" },
         data: {
           startTime: expect.any(Date),
+          isPaused: false,
         },
         include: expect.any(Object),
       });
@@ -192,14 +214,30 @@ describe("activeTimerRouter", () => {
         "No timer to resume"
       );
     });
+
+    it("throws error when timer is not paused", async () => {
+      const runningTimer = {
+        ...mockActiveTimer,
+        isPaused: false,
+      };
+
+      prismaMock.activeTimer.findFirst.mockResolvedValue(runningTimer);
+
+      const caller = createTestCaller();
+
+      await expect(caller.activeTimer.resume()).rejects.toThrow(
+        "Timer is not paused"
+      );
+    });
   });
 
   describe("stop", () => {
-    it("stops the timer and creates a time entry", async () => {
+    it("stops a running timer and creates a time entry", async () => {
       const runningTimer = {
         ...mockActiveTimer,
         startTime: new Date(Date.now() - 3600000), // 1 hour ago
         elapsed: 1800,
+        isPaused: false,
       };
 
       const mockTimeEntry = {
@@ -226,6 +264,43 @@ describe("activeTimerRouter", () => {
       expect(prismaMock.activeTimer.delete).toHaveBeenCalledWith({
         where: { id: "timer-1" },
       });
+    });
+
+    it("stops a paused timer and creates a time entry with correct duration", async () => {
+      const pausedTimer = {
+        ...mockActiveTimer,
+        elapsed: 1800, // 30 minutes accumulated
+        isPaused: true,
+      };
+
+      const mockTimeEntry = {
+        id: "time-1",
+        taskId: "task-1",
+        startTime: new Date(),
+        endTime: new Date(),
+        duration: 1800,
+        notes: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        task: mockTask,
+      };
+
+      prismaMock.activeTimer.findFirst.mockResolvedValue(pausedTimer);
+      prismaMock.timeEntry.create.mockResolvedValue(mockTimeEntry);
+      prismaMock.activeTimer.delete.mockResolvedValue(pausedTimer);
+
+      const caller = createTestCaller();
+      const result = await caller.activeTimer.stop();
+
+      expect(result).toEqual(mockTimeEntry);
+      // When paused, duration should use elapsed only (no additional time calculation)
+      expect(prismaMock.timeEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            duration: 1800,
+          }),
+        })
+      );
     });
 
     it("throws error when no timer to stop", async () => {

@@ -112,6 +112,7 @@ model ActiveTimer {
   taskId    String   @unique // Only one timer per task
   startTime DateTime
   elapsed   Int      @default(0) // Accumulated seconds (for pause/resume)
+  isPaused  Boolean  @default(false) // Track pause state explicitly
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

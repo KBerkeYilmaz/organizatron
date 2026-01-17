@@ -1,4 +1,5 @@
 import { AppSidebar } from "~/components/app-sidebar";
+import { TimerProvider } from "~/components/timer-provider";
 import { SidebarInset, SidebarProvider } from "~/components/ui/sidebar";
 
 export default function DashboardLayout({
@@ -8,10 +9,12 @@ export default function DashboardLayout({
 }) {
   return (
     <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset className="flex h-screen flex-col overflow-hidden">
-        {children}
-      </SidebarInset>
+      <TimerProvider>
+        <AppSidebar />
+        <SidebarInset className="flex h-screen flex-col overflow-hidden">
+          {children}
+        </SidebarInset>
+      </TimerProvider>
     </SidebarProvider>
   );
 }

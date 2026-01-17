@@ -2,6 +2,7 @@ import "~/styles/globals.css";
 
 import { type Metadata } from "next";
 import { Geist } from "next/font/google";
+import { Toaster } from "sonner";
 import { ThemeProvider } from "~/components/theme-provider";
 import { TRPCReactProvider } from "~/trpc/react";
 
@@ -33,6 +34,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <TRPCReactProvider>{children}</TRPCReactProvider>
+          <Toaster richColors closeButton position="bottom-right" />
         </ThemeProvider>
       </body>
     </html>
