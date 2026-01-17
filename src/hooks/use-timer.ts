@@ -221,43 +221,58 @@ export function useTimer() {
     },
   });
 
+  // Check if any mutation is in flight
+  const isMutating =
+    startMutation.isPending ||
+    pauseMutation.isPending ||
+    resumeMutation.isPending ||
+    stopMutation.isPending ||
+    discardMutation.isPending;
+
   // Action handlers with optimistic updates
   const handleStart = useCallback(
     (task: TimerTask) => {
+      if (isMutating) return; // Prevent double-clicks
       previousStateRef.current = { ...timerState };
       startTimer(task);
       startMutation.mutate({ taskId: task.id });
     },
-    [timerState, startTimer, startMutation]
+    [timerState, startTimer, startMutation, isMutating]
   );
 
   const handlePause = useCallback(() => {
+    if (isMutating || !isRunning) return; // Prevent double-clicks or pausing when not running
     previousStateRef.current = { ...timerState };
     pauseTimer();
     pauseMutation.mutate();
-  }, [timerState, pauseTimer, pauseMutation]);
+  }, [timerState, pauseTimer, pauseMutation, isMutating, isRunning]);
 
   const handleResume = useCallback(() => {
+    if (isMutating || !isPaused) return; // Prevent double-clicks or resuming when not paused
     previousStateRef.current = { ...timerState };
     resumeTimer();
     resumeMutation.mutate();
-  }, [timerState, resumeTimer, resumeMutation]);
+  }, [timerState, resumeTimer, resumeMutation, isMutating, isPaused]);
 
   const handleStop = useCallback(() => {
+    if (isMutating || !isActive) return; // Prevent double-clicks or stopping when not active
     previousStateRef.current = { ...timerState };
     stopTimer();
     stopMutation.mutate();
-  }, [timerState, stopTimer, stopMutation]);
+  }, [timerState, stopTimer, stopMutation, isMutating, isActive]);
 
   const handleDiscard = useCallback(() => {
+    if (isMutating || !isActive) return; // Prevent double-clicks or discarding when not active
     previousStateRef.current = { ...timerState };
     discardTimer();
     discardMutation.mutate();
-  }, [timerState, discardTimer, discardMutation]);
+  }, [timerState, discardTimer, discardMutation, isMutating, isActive]);
 
   // Switch to a different task (stops current, starts new)
   const handleSwitchTask = useCallback(
     (newTask: TimerTask) => {
+      if (isMutating) return; // Prevent during mutation
+
       if (!isActive) {
         // No active timer, just start
         handleStart(newTask);
@@ -296,6 +311,7 @@ export function useTimer() {
       });
     },
     [
+      isMutating,
       isActive,
       timerState,
       stopTimer,
@@ -316,6 +332,7 @@ export function useTimer() {
     isRunning,
     isPaused,
     isLoading: isLoadingTimer,
+    isMutating,
     isPending: timerState.isPending,
     pendingAction: timerState.pendingAction,
     task: timerState.task,
