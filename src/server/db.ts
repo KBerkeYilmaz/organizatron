@@ -1,8 +1,17 @@
-import { env } from "~/env";
+import { Pool } from "pg";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../../generated/prisma";
+import { env } from "~/env";
+
+// Create a connection pool to Supabase PostgreSQL
+const pool = new Pool({ connectionString: env.DATABASE_URL });
+
+// Create the Prisma adapter using the pg pool
+const adapter = new PrismaPg(pool);
 
 const createPrismaClient = () =>
   new PrismaClient({
+    adapter,
     log:
       env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
   });

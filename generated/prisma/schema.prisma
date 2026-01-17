@@ -1,5 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Prisma 6 Schema - Organizatron
 
 generator client {
   provider = "prisma-client-js"
@@ -8,14 +7,119 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
-model Post {
-  id        Int      @id @default(autoincrement())
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum TaskStatus {
+  todo
+  in_progress
+  completed
+  archived
+}
+
+enum Priority {
+  low
+  medium
+  high
+  urgent
+}
+
+// ============================================================================
+// CORE ENTITIES
+// ============================================================================
+
+model Client {
+  id        String   @id @default(cuid())
   name      String
+  color     String   @default("#6366f1")
+  logo      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Relations
+  projects Project[]
+
   @@index([name])
+  @@index([createdAt])
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  clientId    String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  tasks  Task[]
+
+  @@index([clientId])
+  @@index([name])
+  @@index([createdAt])
+}
+
+model Task {
+  id            String     @id @default(cuid())
+  projectId     String
+  title         String
+  description   String?
+  status        TaskStatus @default(todo)
+  priority      Priority   @default(medium)
+  estimatedTime Int? // in seconds
+  dueDate       DateTime?
+  tags          String[]   @default([])
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  completedAt   DateTime?
+
+  // Relations
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  timeEntries TimeEntry[]
+  activeTimer ActiveTimer?
+
+  @@index([projectId])
+  @@index([status])
+  @@index([priority])
+  @@index([dueDate])
+  @@index([createdAt])
+  @@index([projectId, status])
+}
+
+model TimeEntry {
+  id        String    @id @default(cuid())
+  taskId    String
+  startTime DateTime
+  endTime   DateTime?
+  duration  Int // in seconds
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([startTime])
+  @@index([startTime, endTime])
+}
+
+model ActiveTimer {
+  id        String   @id @default(cuid())
+  taskId    String   @unique // Only one timer per task
+  startTime DateTime
+  elapsed   Int      @default(0) // Accumulated seconds (for pause/resume)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  // Note: Add userId when auth is implemented
+  // userId String?
+  // @@unique([userId]) // One active timer per user
 }
