@@ -14,11 +14,35 @@ import {
 } from "~/components/ui/dropdown-menu";
 import { formatDuration } from "~/lib/format";
 import { cn } from "~/lib/utils";
-import type { Priority, Task } from "~/lib/types";
-import { getClientForProject, getProject } from "~/lib/data/mock";
+import type { Priority } from "~/lib/types";
+
+// Task with included project and client from tRPC
+interface TaskWithRelations {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string | null;
+  status: "todo" | "in_progress" | "completed" | "archived";
+  priority: Priority;
+  estimatedTime: number | null;
+  dueDate: Date | null;
+  tags: string[];
+  createdAt: Date;
+  completedAt: Date | null;
+  project: {
+    id: string;
+    name: string;
+    client: {
+      id: string;
+      name: string;
+      color: string;
+      logo: string | null;
+    };
+  };
+}
 
 interface TaskCardProps {
-  task: Task;
+  task: TaskWithRelations;
   compact?: boolean;
 }
 
@@ -45,8 +69,8 @@ const priorityConfig: Record<
 };
 
 export function TaskCard({ task, compact = false }: TaskCardProps) {
-  const project = getProject(task.projectId);
-  const client = getClientForProject(task.projectId);
+  const project = task.project;
+  const client = task.project.client;
   const priority = priorityConfig[task.priority];
 
   const dueDate = task.dueDate ? new Date(task.dueDate) : null;

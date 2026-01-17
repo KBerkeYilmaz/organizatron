@@ -61,7 +61,12 @@ describe("projectRouter", () => {
       expect(prismaMock.project.findMany).toHaveBeenCalledWith({
         where: { clientId: "client-1" },
         orderBy: { createdAt: "desc" },
-        include: { client: true },
+        include: {
+          client: true,
+          tasks: {
+            select: { id: true, status: true },
+          },
+        },
       });
     });
   });

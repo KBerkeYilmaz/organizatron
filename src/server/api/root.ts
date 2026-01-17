@@ -3,9 +3,12 @@ import {
   createTRPCRouter,
   publicProcedure,
 } from "~/server/api/trpc";
+import { activeTimerRouter } from "./routers/activeTimer";
 import { clientRouter } from "./routers/client";
 import { projectRouter } from "./routers/project";
+import { statsRouter } from "./routers/stats";
 import { taskRouter } from "./routers/task";
+import { timeEntryRouter } from "./routers/timeEntry";
 
 /**
  * This is the primary router for your server.
@@ -14,9 +17,12 @@ import { taskRouter } from "./routers/task";
  */
 export const appRouter = createTRPCRouter({
   health: publicProcedure.query(() => ({ status: "ok" })),
-  client: clientRouter,
+  activeTimer: activeTimerRouter,
+  clients: clientRouter,
   project: projectRouter,
+  stats: statsRouter,
   task: taskRouter,
+  timeEntry: timeEntryRouter,
 });
 
 // export type definition of API

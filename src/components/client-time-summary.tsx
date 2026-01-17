@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { formatDuration } from "~/lib/format";
-import { getClientTimeSummaries, getTotalTimeForPeriod } from "~/lib/data/mock";
 import type { TimePeriod } from "~/lib/types";
 import { cn } from "~/lib/utils";
+import { api } from "~/trpc/react";
 
 const periods: { value: TimePeriod; label: string }[] = [
   { value: "today", label: "Today" },
@@ -17,8 +18,15 @@ const periods: { value: TimePeriod; label: string }[] = [
 
 export function ClientTimeSummary() {
   const [period, setPeriod] = useState<TimePeriod>("week");
-  const summaries = getClientTimeSummaries(period);
-  const totalTime = getTotalTimeForPeriod(period);
+
+  const { data: summaries, isLoading: summariesLoading } =
+    api.stats.getClientTimeSummaries.useQuery({ period });
+
+  const { data: totalTime, isLoading: totalLoading } =
+    api.stats.getTotalTimeForPeriod.useQuery({ period });
+
+  const isLoading = summariesLoading || totalLoading;
+  const total = totalTime ?? 0;
 
   return (
     <Card>
@@ -48,25 +56,29 @@ export function ClientTimeSummary() {
         <div className="flex items-center justify-between border-b pb-3">
           <span className="text-sm text-muted-foreground">Total tracked</span>
           <span className="text-lg font-semibold tabular-nums">
-            {formatDuration(totalTime)}
+            {isLoading ? "..." : formatDuration(total)}
           </span>
         </div>
 
         {/* Client breakdown */}
-        {summaries.length === 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : !summaries?.length ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
             No time tracked for this period
           </p>
         ) : (
           <div className="space-y-2">
             {summaries.map((summary) => {
-              const percentage = totalTime > 0 ? (summary.totalTime / totalTime) * 100 : 0;
+              const percentage = total > 0 ? (summary.totalTime / total) * 100 : 0;
 
               return (
                 <div key={summary.client.id} className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-base">{summary.client.logo}</span>
+                      <span className="text-base">{summary.client.logo ?? "📁"}</span>
                       <span className="text-sm font-medium">
                         {summary.client.name}
                       </span>

@@ -26,7 +26,7 @@ describe("clientRouter", () => {
       prismaMock.client.findMany.mockResolvedValue(mockClients);
 
       const caller = createTestCaller();
-      const result = await caller.client.getAll();
+      const result = await caller.clients.getAll();
 
       expect(result).toEqual(mockClients);
       expect(prismaMock.client.findMany).toHaveBeenCalledWith({
@@ -38,7 +38,7 @@ describe("clientRouter", () => {
       prismaMock.client.findMany.mockResolvedValue([]);
 
       const caller = createTestCaller();
-      const result = await caller.client.getAll();
+      const result = await caller.clients.getAll();
 
       expect(result).toEqual([]);
     });
@@ -68,7 +68,7 @@ describe("clientRouter", () => {
       prismaMock.client.findUnique.mockResolvedValue(mockClient);
 
       const caller = createTestCaller();
-      const result = await caller.client.getById({ id: "1" });
+      const result = await caller.clients.getById({ id: "1" });
 
       expect(result).toEqual(mockClient);
       expect(prismaMock.client.findUnique).toHaveBeenCalledWith({
@@ -81,7 +81,7 @@ describe("clientRouter", () => {
       prismaMock.client.findUnique.mockResolvedValue(null);
 
       const caller = createTestCaller();
-      const result = await caller.client.getById({ id: "non-existent" });
+      const result = await caller.clients.getById({ id: "non-existent" });
 
       expect(result).toBeNull();
     });
@@ -101,7 +101,7 @@ describe("clientRouter", () => {
       prismaMock.client.create.mockResolvedValue(mockClient);
 
       const caller = createTestCaller();
-      const result = await caller.client.create({ name: "New Client" });
+      const result = await caller.clients.create({ name: "New Client" });
 
       expect(result).toEqual(mockClient);
       expect(prismaMock.client.create).toHaveBeenCalledWith({
@@ -126,7 +126,7 @@ describe("clientRouter", () => {
       prismaMock.client.create.mockResolvedValue(mockClient);
 
       const caller = createTestCaller();
-      const result = await caller.client.create({
+      const result = await caller.clients.create({
         name: "New Client",
         color: "#ff0000",
         logo: "https://example.com/logo.png",
@@ -139,14 +139,14 @@ describe("clientRouter", () => {
     it("rejects empty name", async () => {
       const caller = createTestCaller();
 
-      await expect(caller.client.create({ name: "" })).rejects.toThrow();
+      await expect(caller.clients.create({ name: "" })).rejects.toThrow();
     });
 
     it("rejects invalid color format", async () => {
       const caller = createTestCaller();
 
       await expect(
-        caller.client.create({ name: "Test", color: "red" })
+        caller.clients.create({ name: "Test", color: "red" })
       ).rejects.toThrow();
     });
 
@@ -154,7 +154,7 @@ describe("clientRouter", () => {
       const caller = createTestCaller();
 
       await expect(
-        caller.client.create({ name: "Test", logo: "not-a-url" })
+        caller.clients.create({ name: "Test", logo: "not-a-url" })
       ).rejects.toThrow();
     });
   });
@@ -173,7 +173,7 @@ describe("clientRouter", () => {
       prismaMock.client.update.mockResolvedValue(mockClient);
 
       const caller = createTestCaller();
-      const result = await caller.client.update({
+      const result = await caller.clients.update({
         id: "1",
         name: "Updated Name",
       });
@@ -198,7 +198,7 @@ describe("clientRouter", () => {
       prismaMock.client.update.mockResolvedValue(mockClient);
 
       const caller = createTestCaller();
-      await caller.client.update({
+      await caller.clients.update({
         id: "1",
         name: "Updated",
         color: "#00ff00",
@@ -230,7 +230,7 @@ describe("clientRouter", () => {
       prismaMock.client.delete.mockResolvedValue(mockClient);
 
       const caller = createTestCaller();
-      const result = await caller.client.delete({ id: "1" });
+      const result = await caller.clients.delete({ id: "1" });
 
       expect(result).toEqual(mockClient);
       expect(prismaMock.client.delete).toHaveBeenCalledWith({

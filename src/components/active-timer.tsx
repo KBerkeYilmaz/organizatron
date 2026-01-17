@@ -1,75 +1,138 @@
 "use client";
 
-import { Pause, Play, Square } from "lucide-react";
+import { Loader2, Pause, Play, Square } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { formatTimer } from "~/lib/format";
 import { cn } from "~/lib/utils";
-import type { Task } from "~/lib/types";
-import { getClientForProject, getProject, tasks } from "~/lib/data/mock";
+import { api } from "~/trpc/react";
 
 interface ActiveTimerProps {
   className?: string;
 }
 
 export function ActiveTimer({ className }: ActiveTimerProps) {
-  const [isRunning, setIsRunning] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [localElapsed, setLocalElapsed] = useState(0);
+  const [isLocalRunning, setIsLocalRunning] = useState(false);
 
-  // Get first in-progress task as default
+  const utils = api.useUtils();
+
+  // Fetch current active timer
+  const { data: activeTimer, isLoading: timerLoading } =
+    api.activeTimer.getCurrent.useQuery();
+
+  // Fetch tasks for starting new timer
+  const { data: tasks } = api.task.getAll.useQuery({ status: "in_progress" });
+
+  // Mutations
+  const startMutation = api.activeTimer.start.useMutation({
+    onSuccess: () => {
+      void utils.activeTimer.getCurrent.invalidate();
+    },
+  });
+
+  const pauseMutation = api.activeTimer.pause.useMutation({
+    onSuccess: () => {
+      void utils.activeTimer.getCurrent.invalidate();
+    },
+  });
+
+  const resumeMutation = api.activeTimer.resume.useMutation({
+    onSuccess: () => {
+      void utils.activeTimer.getCurrent.invalidate();
+    },
+  });
+
+  const stopMutation = api.activeTimer.stop.useMutation({
+    onSuccess: () => {
+      void utils.activeTimer.getCurrent.invalidate();
+      void utils.timeEntry.getRecent.invalidate();
+      void utils.stats.invalidate();
+      setLocalElapsed(0);
+      setIsLocalRunning(false);
+    },
+  });
+
+  // Sync local state with server state
   useEffect(() => {
-    const inProgressTask = tasks.find((t) => t.status === "in_progress");
-    if (inProgressTask && !selectedTask) {
-      setSelectedTask(inProgressTask);
+    if (activeTimer) {
+      const serverElapsed = activeTimer.elapsed;
+      const timeSinceStart = Math.floor(
+        (Date.now() - new Date(activeTimer.startTime).getTime()) / 1000
+      );
+      setLocalElapsed(serverElapsed + timeSinceStart);
+      setIsLocalRunning(true);
+    } else {
+      setLocalElapsed(0);
+      setIsLocalRunning(false);
     }
-  }, [selectedTask]);
+  }, [activeTimer]);
 
-  // Timer logic
+  // Local timer tick
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
 
-    if (isRunning && !isPaused) {
+    if (isLocalRunning && activeTimer) {
       interval = setInterval(() => {
-        setElapsed((prev) => prev + 1);
+        const serverElapsed = activeTimer.elapsed;
+        const timeSinceStart = Math.floor(
+          (Date.now() - new Date(activeTimer.startTime).getTime()) / 1000
+        );
+        setLocalElapsed(serverElapsed + timeSinceStart);
       }, 1000);
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isRunning, isPaused]);
+  }, [isLocalRunning, activeTimer]);
 
   const handleStart = useCallback(() => {
-    setIsRunning(true);
-    setIsPaused(false);
-  }, []);
+    const firstTask = tasks?.[0];
+    if (firstTask) {
+      startMutation.mutate({ taskId: firstTask.id });
+    }
+  }, [tasks, startMutation]);
 
   const handlePause = useCallback(() => {
-    setIsPaused(true);
-  }, []);
+    pauseMutation.mutate();
+  }, [pauseMutation]);
 
   const handleResume = useCallback(() => {
-    setIsPaused(false);
-  }, []);
+    resumeMutation.mutate();
+  }, [resumeMutation]);
 
   const handleStop = useCallback(() => {
-    setIsRunning(false);
-    setIsPaused(false);
-    setElapsed(0);
-  }, []);
+    stopMutation.mutate();
+  }, [stopMutation]);
 
-  const project = selectedTask ? getProject(selectedTask.projectId) : null;
-  const client = selectedTask ? getClientForProject(selectedTask.projectId) : null;
+  const task = activeTimer?.task;
+  const project = task?.project;
+  const client = project?.client;
+  const hasActiveTimer = !!activeTimer;
+  const isPending =
+    startMutation.isPending ||
+    pauseMutation.isPending ||
+    resumeMutation.isPending ||
+    stopMutation.isPending;
+
+  if (timerLoading) {
+    return (
+      <Card className={cn("overflow-hidden", className)}>
+        <CardContent className="flex items-center justify-center p-6">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card
       className={cn(
         "overflow-hidden border-2 transition-all duration-300",
-        isRunning && !isPaused
+        hasActiveTimer
           ? "border-primary/50 shadow-lg shadow-primary/10"
           : "border-transparent",
         className
@@ -82,14 +145,12 @@ export function ActiveTimer({ className }: ActiveTimerProps) {
             <div
               className={cn(
                 "font-mono text-5xl font-light tracking-tight tabular-nums transition-colors",
-                isRunning && !isPaused
-                  ? "text-primary"
-                  : "text-foreground"
+                hasActiveTimer ? "text-primary" : "text-foreground"
               )}
             >
-              {formatTimer(elapsed)}
+              {formatTimer(localElapsed)}
             </div>
-            {selectedTask ? (
+            {task ? (
               <div className="flex items-center gap-2">
                 {client && (
                   <span
@@ -99,27 +160,33 @@ export function ActiveTimer({ className }: ActiveTimerProps) {
                 )}
                 <span className="text-sm text-muted-foreground">
                   {client?.name && project?.name
-                    ? `${client.name} · ${project.name} · ${selectedTask.title}`
-                    : selectedTask.title}
+                    ? `${client.name} · ${project.name} · ${task.title}`
+                    : task.title}
                 </span>
               </div>
             ) : (
               <span className="text-sm text-muted-foreground">
-                No task selected
+                {tasks?.length
+                  ? "Select a task to start tracking"
+                  : "No in-progress tasks"}
               </span>
             )}
           </div>
 
           {/* Controls */}
           <div className="flex items-center gap-2">
-            {!isRunning ? (
+            {!hasActiveTimer ? (
               <Button
                 size="lg"
                 onClick={handleStart}
-                disabled={!selectedTask}
+                disabled={!tasks?.length || isPending}
                 className="h-14 w-14 rounded-full shadow-lg transition-all hover:scale-105 hover:shadow-xl"
               >
-                <Play className="h-6 w-6 fill-current" />
+                {isPending ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  <Play className="h-6 w-6 fill-current" />
+                )}
                 <span className="sr-only">Start timer</span>
               </Button>
             ) : (
@@ -127,25 +194,29 @@ export function ActiveTimer({ className }: ActiveTimerProps) {
                 <Button
                   size="lg"
                   variant="outline"
-                  onClick={isPaused ? handleResume : handlePause}
+                  onClick={handlePause}
+                  disabled={isPending}
                   className="h-12 w-12 rounded-full"
                 >
-                  {isPaused ? (
-                    <Play className="h-5 w-5 fill-current" />
+                  {isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
                     <Pause className="h-5 w-5" />
                   )}
-                  <span className="sr-only">
-                    {isPaused ? "Resume" : "Pause"} timer
-                  </span>
+                  <span className="sr-only">Pause timer</span>
                 </Button>
                 <Button
                   size="lg"
                   variant="destructive"
                   onClick={handleStop}
+                  disabled={isPending}
                   className="h-12 w-12 rounded-full"
                 >
-                  <Square className="h-5 w-5 fill-current" />
+                  {isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Square className="h-5 w-5 fill-current" />
+                  )}
                   <span className="sr-only">Stop timer</span>
                 </Button>
               </>
@@ -154,14 +225,11 @@ export function ActiveTimer({ className }: ActiveTimerProps) {
         </div>
 
         {/* Progress indicator when running */}
-        {isRunning && (
+        {hasActiveTimer && (
           <div className="mt-4 h-1 w-full overflow-hidden rounded-full bg-muted">
             <div
-              className={cn(
-                "h-full bg-primary transition-all duration-1000",
-                isPaused ? "animate-pulse" : "animate-none"
-              )}
-              style={{ width: `${Math.min((elapsed / 3600) * 100, 100)}%` }}
+              className="h-full bg-primary transition-all duration-1000"
+              style={{ width: `${Math.min((localElapsed / 3600) * 100, 100)}%` }}
             />
           </div>
         )}

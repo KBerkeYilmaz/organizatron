@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "~/components/ui/button";
@@ -14,7 +14,15 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
 import { cn } from "~/lib/utils";
+import { api } from "~/trpc/react";
 
 interface QuickAddProps {
   className?: string;
@@ -23,13 +31,32 @@ interface QuickAddProps {
 export function QuickAdd({ className }: QuickAddProps) {
   const [open, setOpen] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+
+  const utils = api.useUtils();
+
+  const { data: projects, isLoading: projectsLoading } =
+    api.project.getAll.useQuery();
+
+  const createTask = api.task.create.useMutation({
+    onSuccess: () => {
+      void utils.task.getAll.invalidate();
+      setTaskTitle("");
+      setSelectedProjectId("");
+      setOpen(false);
+    },
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // In real app, this would create the task
-    console.log("Creating task:", taskTitle);
-    setTaskTitle("");
-    setOpen(false);
+    if (!taskTitle.trim() || !selectedProjectId) return;
+
+    createTask.mutate({
+      projectId: selectedProjectId,
+      title: taskTitle.trim(),
+      status: "todo",
+      priority: "medium",
+    });
   };
 
   return (
@@ -55,7 +82,7 @@ export function QuickAdd({ className }: QuickAddProps) {
               Create a new task quickly. You can add more details later.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
+          <div className="space-y-4 py-4">
             <Input
               placeholder="What needs to be done?"
               value={taskTitle}
@@ -63,10 +90,37 @@ export function QuickAdd({ className }: QuickAddProps) {
               className="text-base"
               autoFocus
             />
-            <p className="mt-2 text-xs text-muted-foreground">
-              Pro tip: Use #project to assign, @today for due date, !high for
-              priority
-            </p>
+            <Select
+              value={selectedProjectId}
+              onValueChange={setSelectedProjectId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a project" />
+              </SelectTrigger>
+              <SelectContent>
+                {projectsLoading ? (
+                  <div className="flex items-center justify-center py-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  </div>
+                ) : (
+                  projects?.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      <div className="flex items-center gap-2">
+                        {project.client && (
+                          <span
+                            className="inline-block h-2 w-2 rounded-full"
+                            style={{ backgroundColor: project.client.color }}
+                          />
+                        )}
+                        <span>
+                          {project.client?.name} · {project.name}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
           </div>
           <DialogFooter>
             <Button
@@ -76,8 +130,20 @@ export function QuickAdd({ className }: QuickAddProps) {
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={!taskTitle.trim()}>
-              Add Task
+            <Button
+              type="submit"
+              disabled={
+                !taskTitle.trim() || !selectedProjectId || createTask.isPending
+              }
+            >
+              {createTask.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                "Add Task"
+              )}
             </Button>
           </DialogFooter>
         </form>

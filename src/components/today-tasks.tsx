@@ -1,15 +1,20 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 import { TaskCard } from "~/components/task-card";
 import { Button } from "~/components/ui/button";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import { getTodaysTasks } from "~/lib/data/mock";
+import { api } from "~/trpc/react";
 
 export function TodayTasks() {
-  const todaysTasks = getTodaysTasks();
+  // Get in-progress tasks - these are today's focus
+  const { data: tasks, isLoading } = api.task.getAll.useQuery({
+    status: "in_progress",
+  });
+
+  const taskCount = tasks?.length ?? 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -17,7 +22,7 @@ export function TodayTasks() {
         <div>
           <h2 className="text-lg font-semibold">Today&apos;s Tasks</h2>
           <p className="text-sm text-muted-foreground">
-            {todaysTasks.length} tasks to focus on
+            {isLoading ? "Loading..." : `${taskCount} tasks to focus on`}
           </p>
         </div>
         <Button variant="ghost" size="sm" asChild className="gap-1">
@@ -28,7 +33,11 @@ export function TodayTasks() {
         </Button>
       </div>
 
-      {todaysTasks.length === 0 ? (
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : taskCount === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-12 text-center">
           <p className="text-muted-foreground">No tasks for today</p>
           <p className="text-sm text-muted-foreground">
@@ -38,7 +47,7 @@ export function TodayTasks() {
       ) : (
         <ScrollArea className="h-[400px] pr-4">
           <div className="flex flex-col gap-3">
-            {todaysTasks.map((task) => (
+            {tasks?.map((task) => (
               <TaskCard key={task.id} task={task} />
             ))}
           </div>

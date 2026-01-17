@@ -15,7 +15,12 @@ export const projectRouter = createTRPCRouter({
       return ctx.db.project.findMany({
         where: { clientId: input.clientId },
         orderBy: { createdAt: "desc" },
-        include: { client: true },
+        include: {
+          client: true,
+          tasks: {
+            select: { id: true, status: true },
+          },
+        },
       });
     }),
 
