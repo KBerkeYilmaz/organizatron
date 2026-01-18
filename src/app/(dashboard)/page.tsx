@@ -1,27 +1,13 @@
 "use client";
 
-import { Activity } from "lucide-react";
-import { useState } from "react";
-
 import { ActiveTimer } from "~/components/active-timer";
-import { ActivitySidebar } from "~/components/activity-sidebar";
 import { ClientTimeSummary } from "~/components/client-time-summary";
+import { PageHeader } from "~/components/page-header";
 import { ProjectsOverview } from "~/components/projects-overview";
-import { QuickAdd } from "~/components/quick-add";
 import { TaskTimeEntries } from "~/components/task-time-entries";
-import { ThemeToggle } from "~/components/theme-toggle";
 import { TodayTasks } from "~/components/today-tasks";
-import { Button } from "~/components/ui/button";
-import { SidebarTrigger } from "~/components/ui/sidebar";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "~/components/ui/tooltip";
 
 export default function DashboardPage() {
-  const [activityOpen, setActivityOpen] = useState(false);
-
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
@@ -30,36 +16,7 @@ export default function DashboardPage() {
 
   return (
     <>
-      {/* Header */}
-      <header className="flex h-[65px] shrink-0 items-center border-b bg-background px-6">
-        <div className="flex w-full items-center justify-between">
-          <div className="flex items-center gap-4">
-            <SidebarTrigger className="-ml-2" />
-            <div>
-              <h1 className="text-xl font-semibold tracking-tight">
-                Good morning, Berke
-              </h1>
-              <p className="text-sm text-muted-foreground">{today}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setActivityOpen(true)}
-                >
-                  <Activity className="h-5 w-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Recent Activity</TooltipContent>
-            </Tooltip>
-            <ThemeToggle />
-            <QuickAdd />
-          </div>
-        </div>
-      </header>
+      <PageHeader title="Good morning, Berke" subtitle={today} />
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto px-6 py-6">
@@ -85,9 +42,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </main>
-
-      {/* Activity Sidebar */}
-      <ActivitySidebar open={activityOpen} onOpenChange={setActivityOpen} />
     </>
   );
 }

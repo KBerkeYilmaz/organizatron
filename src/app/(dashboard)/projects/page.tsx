@@ -3,6 +3,11 @@
 import { FolderKanban, Plus } from "lucide-react";
 import { useState } from "react";
 
+import { PageHeader } from "~/components/page-header";
+import { ProjectDialog } from "~/components/project-dialog";
+import { ProjectsKanban } from "~/components/projects-kanban";
+import { TaskDialog } from "~/components/task-dialog";
+import type { KanbanTask } from "~/components/task-kanban-card";
 import { Button } from "~/components/ui/button";
 import {
   Select,
@@ -11,10 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { ProjectDialog } from "~/components/project-dialog";
-import { ProjectsKanban } from "~/components/projects-kanban";
-import { TaskDialog } from "~/components/task-dialog";
-import type { KanbanTask } from "~/components/task-kanban-card";
 import { api } from "~/trpc/react";
 
 export default function ProjectsPage() {
@@ -56,26 +57,17 @@ export default function ProjectsPage() {
     }
   };
 
+  const subtitle = selectedProject
+    ? `${selectedProject.name} - ${selectedClient?.name}`
+    : "Select a project to view tasks";
+
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Header */}
-      <header className="flex h-[65px] shrink-0 items-center justify-between border-b bg-background px-6">
-        <div>
-          <h1 className="text-xl font-semibold">Projects</h1>
-          <p className="text-sm text-muted-foreground">
-            {selectedProject
-              ? `${selectedProject.name} - ${selectedClient?.name}`
-              : "Select a project to view tasks"}
-          </p>
-        </div>
-        <Button onClick={() => setProjectDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Project
-        </Button>
-      </header>
+    <>
+      <PageHeader title="Projects" subtitle={subtitle} />
 
       {/* Filters */}
-      <div className="flex items-center gap-4 border-b px-6 py-4">
+      <div className="flex shrink-0 items-center justify-between gap-4 border-b px-6 py-4">
+        <div className="flex items-center gap-4">
         {/* Client dropdown */}
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-muted-foreground">Client:</span>
@@ -139,6 +131,12 @@ export default function ProjectsPage() {
             </SelectContent>
           </Select>
         </div>
+        </div>
+
+        <Button onClick={() => setProjectDialogOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          New Project
+        </Button>
       </div>
 
       {/* Kanban Board */}
@@ -178,7 +176,7 @@ export default function ProjectsPage() {
         task={editingTask}
         defaultProjectId={projectId || undefined}
       />
-    </div>
+    </>
   );
 }
 

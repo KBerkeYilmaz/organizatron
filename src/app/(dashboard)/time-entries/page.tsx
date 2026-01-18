@@ -3,13 +3,13 @@
 import { useState } from "react";
 
 import { ActiveTimer } from "~/components/active-timer";
+import { PageHeader } from "~/components/page-header";
 import { PeriodFilter, type Period } from "~/components/period-filter";
 import { TimeEntriesList } from "~/components/time-entries-list";
 import {
   TimeEntryFilters,
   type TimeEntryFiltersState,
 } from "~/components/time-entry-filters";
-import { SidebarTrigger } from "~/components/ui/sidebar";
 import { api } from "~/trpc/react";
 
 export default function TimeEntriesPage() {
@@ -57,27 +57,16 @@ export default function TimeEntriesPage() {
   };
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Header */}
-      <header className="flex h-[65px] shrink-0 items-center border-b bg-background px-6">
-        <div className="flex w-full items-center justify-between">
-          <div className="flex items-center gap-4">
-            <SidebarTrigger className="-ml-2" />
-            <div>
-              <h1 className="text-xl font-semibold">Time Entries</h1>
-              <p className="text-sm text-muted-foreground">{getPeriodText()}</p>
-            </div>
-          </div>
-        </div>
-      </header>
+    <>
+      <PageHeader title="Time Entries" subtitle={getPeriodText()} />
 
       {/* Active Timer */}
-      <div className="border-b px-6 py-4">
+      <div className="shrink-0 border-b px-6 py-4">
         <ActiveTimer />
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col gap-4 border-b px-6 py-4">
+      <div className="flex shrink-0 flex-col gap-4 border-b px-6 py-4">
         {/* Period filter */}
         <PeriodFilter
           period={period}
@@ -94,6 +83,6 @@ export default function TimeEntriesPage() {
       <main className="flex-1 overflow-y-auto p-6">
         <TimeEntriesList data={data} isLoading={isLoading} />
       </main>
-    </div>
+    </>
   );
 }

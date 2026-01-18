@@ -4,6 +4,10 @@ import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { PageHeader } from "~/components/page-header";
+import { TaskDialog } from "~/components/task-dialog";
+import { TaskFilters, type TaskFiltersState } from "~/components/task-filters";
+import { TaskTable } from "~/components/task-table";
 import { Button } from "~/components/ui/button";
 import {
   Select,
@@ -12,9 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { TaskDialog } from "~/components/task-dialog";
-import { TaskFilters, type TaskFiltersState } from "~/components/task-filters";
-import { TaskTable } from "~/components/task-table";
 import { api } from "~/trpc/react";
 
 type TaskStatus = "todo" | "in_progress" | "completed" | "archived";
@@ -92,54 +93,54 @@ export default function TasksPage() {
     }
   };
 
+  const taskCount = tasks?.length ?? 0;
+
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Header */}
-      <header className="flex h-[65px] shrink-0 items-center justify-between border-b bg-background px-6">
-        <div>
-          <h1 className="text-xl font-semibold">Tasks</h1>
-          <p className="text-sm text-muted-foreground">
-            {tasks?.length ?? 0} task{tasks?.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Task
-        </Button>
-      </header>
+    <>
+      <PageHeader
+        title="Tasks"
+        subtitle={`${taskCount} task${taskCount !== 1 ? "s" : ""}`}
+      />
 
       {/* Filters & Bulk Actions */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b px-6 py-4">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b px-6 py-4">
         <TaskFilters filters={filters} onFiltersChange={setFilters} />
 
-        {/* Bulk actions - show when items selected */}
-        {selectedIds.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              {selectedIds.length} selected
-            </span>
-            <Select onValueChange={(v) => handleBulkStatusChange(v as TaskStatus)}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Set status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todo">To Do</SelectItem>
-                <SelectItem value="in_progress">In Progress</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="archived">Archived</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleBulkDelete}
-              disabled={deleteManyMutation.isPending}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </Button>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Bulk actions - show when items selected */}
+          {selectedIds.length > 0 && (
+            <>
+              <span className="text-sm text-muted-foreground">
+                {selectedIds.length} selected
+              </span>
+              <Select onValueChange={(v) => handleBulkStatusChange(v as TaskStatus)}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Set status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todo">To Do</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleBulkDelete}
+                disabled={deleteManyMutation.isPending}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </Button>
+            </>
+          )}
+
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Task
+          </Button>
+        </div>
       </div>
 
       {/* Table */}
@@ -159,6 +160,6 @@ export default function TasksPage() {
         onOpenChange={handleDialogClose}
         task={editingTask}
       />
-    </div>
+    </>
   );
 }
