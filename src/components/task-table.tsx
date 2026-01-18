@@ -3,6 +3,7 @@
 import { format } from "date-fns";
 import {
   ArrowUpDown,
+  DollarSign,
   MoreHorizontal,
   Pencil,
   Play,
@@ -49,6 +50,10 @@ interface Task {
   dueDate: Date | null;
   tags: string[];
   createdAt: Date;
+  // Billing
+  isBillable: boolean;
+  hourlyRate: number | null;
+  currency: string;
   project: {
     id: string;
     name: string;
@@ -179,6 +184,9 @@ export function TaskTable({
           color: task.project.client.color,
         },
       },
+      isBillable: task.isBillable,
+      hourlyRate: task.hourlyRate,
+      currency: task.currency,
     };
     start(timerTask);
   };
@@ -322,14 +330,26 @@ export function TaskTable({
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col">
-                    <span
-                      className={cn(
-                        "font-medium",
-                        task.status === "completed" && "line-through"
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={cn(
+                          "font-medium",
+                          task.status === "completed" && "line-through"
+                        )}
+                      >
+                        {task.title}
+                      </span>
+                      {task.isBillable && (
+                        <span
+                          className="flex items-center justify-center h-4 w-4 rounded-full bg-emerald-100 dark:bg-emerald-900/30"
+                          title={task.hourlyRate
+                            ? `${(task.hourlyRate / 100).toFixed(2)} ${task.currency}/hr`
+                            : "Billable"}
+                        >
+                          <DollarSign className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                        </span>
                       )}
-                    >
-                      {task.title}
-                    </span>
+                    </div>
                     {task.tags.length > 0 && (
                       <div className="flex gap-1 mt-1">
                         {task.tags.slice(0, 3).map((tag) => (

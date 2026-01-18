@@ -33,6 +33,10 @@ interface TaskWithRelations {
   tags: string[];
   createdAt: Date;
   completedAt: Date | null;
+  // Billing
+  isBillable: boolean;
+  hourlyRate: number | null;
+  currency: string;
   project: {
     id: string;
     name: string;
@@ -103,6 +107,9 @@ export function TaskCard({ task, compact = false, onEdit }: TaskCardProps) {
           color: client.color,
         },
       },
+      isBillable: task.isBillable,
+      hourlyRate: task.hourlyRate,
+      currency: task.currency,
     };
     start(timerTask);
   };

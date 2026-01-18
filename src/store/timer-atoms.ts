@@ -13,6 +13,10 @@ export interface TimerTask {
       color: string;
     };
   };
+  // Billing info (optional for backwards compat)
+  isBillable?: boolean;
+  hourlyRate?: number | null; // in cents
+  currency?: string;
 }
 
 export type TimerStatus = "idle" | "running" | "paused";

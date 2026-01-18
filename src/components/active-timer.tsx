@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Pause, Play, Square, X } from "lucide-react";
+import { DollarSign, Loader2, Pause, Play, Square, X } from "lucide-react";
 import { useCallback, useRef } from "react";
 
 import { Button } from "~/components/ui/button";
@@ -71,6 +71,9 @@ export function ActiveTimer({ className }: ActiveTimerProps) {
               color: selectedTask.project.client.color,
             },
           },
+          isBillable: selectedTask.isBillable,
+          hourlyRate: selectedTask.hourlyRate,
+          currency: selectedTask.currency,
         };
         start(timerTask);
       }
@@ -137,7 +140,19 @@ export function ActiveTimer({ className }: ActiveTimerProps) {
                   />
                 )}
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{task.title}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-sm font-medium">{task.title}</p>
+                    {task.isBillable && (
+                      <span
+                        className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30"
+                        title={task.hourlyRate
+                          ? `${(task.hourlyRate / 100).toFixed(2)} ${task.currency}/hr`
+                          : "Billable"}
+                      >
+                        <DollarSign className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                      </span>
+                    )}
+                  </div>
                   <p className="truncate text-xs text-muted-foreground">
                     {client?.name && project?.name
                       ? `${client.name} / ${project.name}`

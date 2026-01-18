@@ -28,9 +28,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
+import { Switch } from "~/components/ui/switch";
 import { Textarea } from "~/components/ui/textarea";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
+
+const CURRENCIES = [
+  { code: "USD", symbol: "$", name: "US Dollar" },
+  { code: "EUR", symbol: "€", name: "Euro" },
+  { code: "GBP", symbol: "£", name: "British Pound" },
+  { code: "TRY", symbol: "₺", name: "Turkish Lira" },
+  { code: "CAD", symbol: "C$", name: "Canadian Dollar" },
+  { code: "AUD", symbol: "A$", name: "Australian Dollar" },
+] as const;
 
 type TaskStatus = "todo" | "in_progress" | "completed" | "archived";
 type TaskPriority = "low" | "medium" | "high" | "urgent";
@@ -45,6 +55,10 @@ interface Task {
   estimatedTime: number | null;
   dueDate: Date | null;
   tags: string[];
+  // Billing
+  isBillable: boolean;
+  hourlyRate: number | null;
+  currency: string;
   project: {
     id: string;
     name: string;
@@ -80,6 +94,10 @@ export function TaskDialog({
   const [estimatedTime, setEstimatedTime] = useState("");
   const [dueDate, setDueDate] = useState<Date | undefined>();
   const [tags, setTags] = useState("");
+  // Billing state
+  const [isBillable, setIsBillable] = useState(false);
+  const [hourlyRate, setHourlyRate] = useState("");
+  const [currency, setCurrency] = useState("USD");
 
   const utils = api.useUtils();
 
@@ -96,6 +114,10 @@ export function TaskDialog({
       );
       setDueDate(task.dueDate ? new Date(task.dueDate) : undefined);
       setTags(task.tags.join(", "));
+      // Billing
+      setIsBillable(task.isBillable);
+      setHourlyRate(task.hourlyRate ? String(task.hourlyRate / 100) : "");
+      setCurrency(task.currency);
     } else {
       resetForm();
       if (defaultProjectId) {
@@ -113,6 +135,10 @@ export function TaskDialog({
     setEstimatedTime("");
     setDueDate(undefined);
     setTags("");
+    // Billing
+    setIsBillable(false);
+    setHourlyRate("");
+    setCurrency("USD");
   };
 
   // Queries
@@ -169,6 +195,10 @@ export function TaskDialog({
     const parsedEstimatedTime = estimatedTime
       ? parseInt(estimatedTime) * 60
       : null;
+    // Convert dollars to cents
+    const parsedHourlyRate = hourlyRate
+      ? Math.round(parseFloat(hourlyRate) * 100)
+      : null;
 
     if (isEditing && task) {
       updateTask.mutate({
@@ -180,6 +210,9 @@ export function TaskDialog({
         estimatedTime: parsedEstimatedTime,
         dueDate: dueDate ?? null,
         tags: parsedTags,
+        isBillable,
+        hourlyRate: parsedHourlyRate,
+        currency,
       });
     } else {
       createTask.mutate({
@@ -191,6 +224,9 @@ export function TaskDialog({
         estimatedTime: parsedEstimatedTime ?? undefined,
         dueDate,
         tags: parsedTags,
+        isBillable,
+        hourlyRate: parsedHourlyRate ?? undefined,
+        currency,
       });
     }
   };
@@ -363,6 +399,62 @@ export function TaskDialog({
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
               />
+            </div>
+
+            {/* Billing Section */}
+            <div className="space-y-4 rounded-lg border p-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="billable">Billable Task</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Track time for invoicing
+                  </p>
+                </div>
+                <Switch
+                  id="billable"
+                  checked={isBillable}
+                  onCheckedChange={setIsBillable}
+                />
+              </div>
+
+              {isBillable && (
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="hourlyRate">Hourly Rate</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                        {CURRENCIES.find((c) => c.code === currency)?.symbol ?? "$"}
+                      </span>
+                      <Input
+                        id="hourlyRate"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={hourlyRate}
+                        onChange={(e) => setHourlyRate(e.target.value)}
+                        className="pl-7"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Currency</Label>
+                    <Select value={currency} onValueChange={setCurrency}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CURRENCIES.map((curr) => (
+                          <SelectItem key={curr.code} value={curr.code}>
+                            {curr.symbol} {curr.code}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

@@ -16,6 +16,7 @@ export const taskRouter = createTRPCRouter({
           priority: priorityEnum.optional(),
           priorities: z.array(priorityEnum).optional(),
           search: z.string().optional(),
+          isBillable: z.boolean().optional(),
         })
         .optional()
     )
@@ -42,6 +43,10 @@ export const taskRouter = createTRPCRouter({
           // Search by title (case-insensitive)
           ...(input?.search && {
             title: { contains: input.search, mode: "insensitive" },
+          }),
+          // Filter by billable status
+          ...(input?.isBillable !== undefined && {
+            isBillable: input.isBillable,
           }),
         },
         orderBy: { createdAt: "desc" },
@@ -84,6 +89,10 @@ export const taskRouter = createTRPCRouter({
         estimatedTime: z.number().int().positive().optional(),
         dueDate: z.date().optional(),
         tags: z.array(z.string()).optional(),
+        // Billing fields
+        isBillable: z.boolean().optional(),
+        hourlyRate: z.number().int().positive().optional(), // in cents
+        currency: z.string().length(3).optional(), // ISO 4217
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -97,6 +106,9 @@ export const taskRouter = createTRPCRouter({
           estimatedTime: input.estimatedTime,
           dueDate: input.dueDate,
           tags: input.tags ?? [],
+          isBillable: input.isBillable,
+          hourlyRate: input.hourlyRate,
+          currency: input.currency,
         },
         include: {
           project: {
@@ -117,6 +129,10 @@ export const taskRouter = createTRPCRouter({
         estimatedTime: z.number().int().positive().nullable().optional(),
         dueDate: z.date().nullable().optional(),
         tags: z.array(z.string()).optional(),
+        // Billing fields
+        isBillable: z.boolean().optional(),
+        hourlyRate: z.number().int().positive().nullable().optional(), // in cents
+        currency: z.string().length(3).optional(), // ISO 4217
       })
     )
     .mutation(async ({ ctx, input }) => {

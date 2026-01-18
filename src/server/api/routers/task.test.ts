@@ -179,6 +179,36 @@ describe("taskRouter", () => {
         })
       );
     });
+
+    it("filters by billable status", async () => {
+      prismaMock.task.findMany.mockResolvedValue([]);
+
+      const caller = createTestCaller();
+      await caller.task.getAll({ isBillable: true });
+
+      expect(prismaMock.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            isBillable: true,
+          }),
+        })
+      );
+    });
+
+    it("filters by non-billable status", async () => {
+      prismaMock.task.findMany.mockResolvedValue([]);
+
+      const caller = createTestCaller();
+      await caller.task.getAll({ isBillable: false });
+
+      expect(prismaMock.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            isBillable: false,
+          }),
+        })
+      );
+    });
   });
 
   describe("getById", () => {
@@ -330,6 +360,64 @@ describe("taskRouter", () => {
         })
       ).rejects.toThrow();
     });
+
+    it("creates a billable task with hourly rate", async () => {
+      const mockTask = {
+        id: "billable-task",
+        projectId: "project-1",
+        title: "Billable Task",
+        description: null,
+        status: "todo" as const,
+        priority: "medium" as const,
+        estimatedTime: null,
+        dueDate: null,
+        tags: [],
+        createdAt: new Date("2024-01-01"),
+        updatedAt: new Date("2024-01-01"),
+        completedAt: null,
+        isBillable: true,
+        hourlyRate: 7500, // $75.00
+        currency: "USD",
+        project: mockProject,
+      };
+
+      prismaMock.task.create.mockResolvedValue(mockTask);
+
+      const caller = createTestCaller();
+      const result = await caller.task.create({
+        projectId: "project-1",
+        title: "Billable Task",
+        isBillable: true,
+        hourlyRate: 7500,
+        currency: "USD",
+      });
+
+      expect(result.isBillable).toBe(true);
+      expect(result.hourlyRate).toBe(7500);
+      expect(result.currency).toBe("USD");
+      expect(prismaMock.task.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            isBillable: true,
+            hourlyRate: 7500,
+            currency: "USD",
+          }),
+        })
+      );
+    });
+
+    it("rejects invalid currency code", async () => {
+      const caller = createTestCaller();
+
+      await expect(
+        caller.task.create({
+          projectId: "project-1",
+          title: "Test",
+          isBillable: true,
+          currency: "INVALID", // Should be 3 chars
+        })
+      ).rejects.toThrow();
+    });
   });
 
   describe("update", () => {
@@ -427,6 +515,80 @@ describe("taskRouter", () => {
           project: { include: { client: true } },
         },
       });
+    });
+
+    it("updates task billing fields", async () => {
+      const mockTask = {
+        id: "1",
+        projectId: "project-1",
+        title: "Task",
+        description: null,
+        status: "todo" as const,
+        priority: "medium" as const,
+        estimatedTime: null,
+        dueDate: null,
+        tags: [],
+        createdAt: new Date("2024-01-01"),
+        updatedAt: new Date("2024-01-01"),
+        completedAt: null,
+        isBillable: true,
+        hourlyRate: 10000,
+        currency: "EUR",
+        project: mockProject,
+      };
+
+      prismaMock.task.update.mockResolvedValue(mockTask);
+
+      const caller = createTestCaller();
+      const result = await caller.task.update({
+        id: "1",
+        isBillable: true,
+        hourlyRate: 10000,
+        currency: "EUR",
+      });
+
+      expect(result.isBillable).toBe(true);
+      expect(result.hourlyRate).toBe(10000);
+      expect(result.currency).toBe("EUR");
+    });
+
+    it("clears hourly rate when setting to null", async () => {
+      const mockTask = {
+        id: "1",
+        projectId: "project-1",
+        title: "Task",
+        description: null,
+        status: "todo" as const,
+        priority: "medium" as const,
+        estimatedTime: null,
+        dueDate: null,
+        tags: [],
+        createdAt: new Date("2024-01-01"),
+        updatedAt: new Date("2024-01-01"),
+        completedAt: null,
+        isBillable: false,
+        hourlyRate: null,
+        currency: "USD",
+        project: mockProject,
+      };
+
+      prismaMock.task.update.mockResolvedValue(mockTask);
+
+      const caller = createTestCaller();
+      await caller.task.update({
+        id: "1",
+        isBillable: false,
+        hourlyRate: null,
+      });
+
+      expect(prismaMock.task.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            isBillable: false,
+            hourlyRate: null,
+          }),
+        })
+      );
     });
   });
 

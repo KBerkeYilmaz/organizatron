@@ -76,6 +76,11 @@ model Task {
   updatedAt     DateTime   @updatedAt
   completedAt   DateTime?
 
+  // Billing
+  isBillable Boolean @default(false)
+  hourlyRate Int?    // in cents (e.g., 5000 = $50.00)
+  currency   String  @default("USD") // ISO 4217 currency code
+
   // Relations
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   timeEntries TimeEntry[]
@@ -87,6 +92,7 @@ model Task {
   @@index([dueDate])
   @@index([createdAt])
   @@index([projectId, status])
+  @@index([isBillable])
 }
 
 model TimeEntry {
