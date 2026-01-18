@@ -10,8 +10,12 @@ export const taskRouter = createTRPCRouter({
       z
         .object({
           projectId: z.string().optional(),
+          clientId: z.string().optional(),
           status: taskStatusEnum.optional(),
+          statuses: z.array(taskStatusEnum).optional(),
           priority: priorityEnum.optional(),
+          priorities: z.array(priorityEnum).optional(),
+          search: z.string().optional(),
         })
         .optional()
     )
@@ -19,13 +23,34 @@ export const taskRouter = createTRPCRouter({
       return ctx.db.task.findMany({
         where: {
           projectId: input?.projectId,
-          status: input?.status,
-          priority: input?.priority,
+          // Filter by client through project relation
+          ...(input?.clientId && {
+            project: { clientId: input.clientId },
+          }),
+          // Support both single status and array of statuses
+          ...(input?.statuses && input.statuses.length > 0
+            ? { status: { in: input.statuses } }
+            : input?.status
+              ? { status: input.status }
+              : {}),
+          // Support both single priority and array of priorities
+          ...(input?.priorities && input.priorities.length > 0
+            ? { priority: { in: input.priorities } }
+            : input?.priority
+              ? { priority: input.priority }
+              : {}),
+          // Search by title (case-insensitive)
+          ...(input?.search && {
+            title: { contains: input.search, mode: "insensitive" },
+          }),
         },
         orderBy: { createdAt: "desc" },
         include: {
           project: {
             include: { client: true },
+          },
+          _count: {
+            select: { timeEntries: true },
           },
         },
       });
@@ -142,6 +167,15 @@ export const taskRouter = createTRPCRouter({
           status: input.status,
           completedAt,
         },
+      });
+    }),
+
+  // Bulk delete
+  deleteMany: publicProcedure
+    .input(z.object({ ids: z.array(z.string()).min(1, "At least one id required") }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.task.deleteMany({
+        where: { id: { in: input.ids } },
       });
     }),
 });

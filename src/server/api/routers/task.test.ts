@@ -51,12 +51,11 @@ describe("taskRouter", () => {
       expect(prismaMock.task.findMany).toHaveBeenCalledWith({
         where: {
           projectId: undefined,
-          status: undefined,
-          priority: undefined,
         },
         orderBy: { createdAt: "desc" },
         include: {
           project: { include: { client: true } },
+          _count: { select: { timeEntries: true } },
         },
       });
     });
@@ -96,6 +95,87 @@ describe("taskRouter", () => {
       expect(prismaMock.task.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ priority: "urgent" }),
+        })
+      );
+    });
+
+    it("filters by clientId through project relation", async () => {
+      prismaMock.task.findMany.mockResolvedValue([]);
+
+      const caller = createTestCaller();
+      await caller.task.getAll({ clientId: "client-1" });
+
+      expect(prismaMock.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            project: { clientId: "client-1" },
+          }),
+        })
+      );
+    });
+
+    it("searches by title case-insensitively", async () => {
+      prismaMock.task.findMany.mockResolvedValue([]);
+
+      const caller = createTestCaller();
+      await caller.task.getAll({ search: "design" });
+
+      expect(prismaMock.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            title: { contains: "design", mode: "insensitive" },
+          }),
+        })
+      );
+    });
+
+    it("filters by multiple statuses", async () => {
+      prismaMock.task.findMany.mockResolvedValue([]);
+
+      const caller = createTestCaller();
+      await caller.task.getAll({ statuses: ["todo", "in_progress"] });
+
+      expect(prismaMock.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            status: { in: ["todo", "in_progress"] },
+          }),
+        })
+      );
+    });
+
+    it("filters by multiple priorities", async () => {
+      prismaMock.task.findMany.mockResolvedValue([]);
+
+      const caller = createTestCaller();
+      await caller.task.getAll({ priorities: ["high", "urgent"] });
+
+      expect(prismaMock.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            priority: { in: ["high", "urgent"] },
+          }),
+        })
+      );
+    });
+
+    it("combines multiple filters", async () => {
+      prismaMock.task.findMany.mockResolvedValue([]);
+
+      const caller = createTestCaller();
+      await caller.task.getAll({
+        clientId: "client-1",
+        search: "urgent",
+        statuses: ["todo"],
+      });
+
+      expect(prismaMock.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            project: { clientId: "client-1" },
+            title: { contains: "urgent", mode: "insensitive" },
+            status: { in: ["todo"] },
+          }),
         })
       );
     });
@@ -412,6 +492,41 @@ describe("taskRouter", () => {
           completedAt: null,
         },
       });
+    });
+  });
+
+  describe("deleteMany", () => {
+    it("bulk deletes multiple tasks", async () => {
+      prismaMock.task.deleteMany.mockResolvedValue({ count: 3 });
+
+      const caller = createTestCaller();
+      const result = await caller.task.deleteMany({
+        ids: ["1", "2", "3"],
+      });
+
+      expect(result.count).toBe(3);
+      expect(prismaMock.task.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ["1", "2", "3"] } },
+      });
+    });
+
+    it("returns count of 0 when no matching ids", async () => {
+      prismaMock.task.deleteMany.mockResolvedValue({ count: 0 });
+
+      const caller = createTestCaller();
+      const result = await caller.task.deleteMany({
+        ids: ["nonexistent-1", "nonexistent-2"],
+      });
+
+      expect(result.count).toBe(0);
+    });
+
+    it("rejects empty ids array", async () => {
+      const caller = createTestCaller();
+
+      await expect(
+        caller.task.deleteMany({ ids: [] })
+      ).rejects.toThrow();
     });
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 
-import { Calendar, Clock, MoreHorizontal, Play } from "lucide-react";
+import { Calendar, Clock, MoreHorizontal, Pencil, Play, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -12,9 +13,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
+import { useTimer } from "~/hooks/use-timer";
 import { formatDuration } from "~/lib/format";
 import { cn } from "~/lib/utils";
 import type { Priority } from "~/lib/types";
+import type { TimerTask } from "~/store/timer-atoms";
+import { api } from "~/trpc/react";
 
 // Task with included project and client from tRPC
 interface TaskWithRelations {
@@ -44,6 +48,7 @@ interface TaskWithRelations {
 interface TaskCardProps {
   task: TaskWithRelations;
   compact?: boolean;
+  onEdit?: (task: TaskWithRelations) => void;
 }
 
 const priorityConfig: Record<
@@ -68,10 +73,45 @@ const priorityConfig: Record<
   },
 };
 
-export function TaskCard({ task, compact = false }: TaskCardProps) {
+export function TaskCard({ task, compact = false, onEdit }: TaskCardProps) {
   const project = task.project;
   const client = task.project.client;
   const priority = priorityConfig[task.priority];
+  const { start } = useTimer();
+  const utils = api.useUtils();
+
+  const deleteMutation = api.task.delete.useMutation({
+    onSuccess: () => {
+      void utils.task.getAll.invalidate();
+      toast.success("Task deleted");
+    },
+    onError: (error) => {
+      toast.error("Failed to delete task", { description: error.message });
+    },
+  });
+
+  const handleStartTimer = () => {
+    const timerTask: TimerTask = {
+      id: task.id,
+      title: task.title,
+      project: {
+        id: project.id,
+        name: project.name,
+        client: {
+          id: client.id,
+          name: client.name,
+          color: client.color,
+        },
+      },
+    };
+    start(timerTask);
+  };
+
+  const handleDelete = () => {
+    if (confirm(`Delete "${task.title}"?`)) {
+      deleteMutation.mutate({ id: task.id });
+    }
+  };
 
   const dueDate = task.dueDate ? new Date(task.dueDate) : null;
   const isOverdue =
@@ -155,11 +195,16 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem>Edit task</DropdownMenuItem>
-                  <DropdownMenuItem>Move to project...</DropdownMenuItem>
-                  <DropdownMenuItem>Set due date</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onEdit?.(task)}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Edit task
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="text-destructive">
+                  <DropdownMenuItem
+                    onClick={handleDelete}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
                     Delete task
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -172,6 +217,7 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
                 variant="ghost"
                 size="sm"
                 className="h-7 gap-1.5 px-2 text-xs opacity-0 transition-opacity group-hover:opacity-100"
+                onClick={handleStartTimer}
               >
                 <Play className="h-3 w-3 fill-current" />
                 Start
