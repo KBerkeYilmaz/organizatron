@@ -1,13 +1,34 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 
+const projectStatusEnum = z.enum([
+  "planning",
+  "active",
+  "on_hold",
+  "completed",
+  "archived",
+]);
+
 export const projectRouter = createTRPCRouter({
-  getAll: publicProcedure.query(async ({ ctx }) => {
-    return ctx.db.project.findMany({
-      orderBy: { createdAt: "desc" },
-      include: { client: true },
-    });
-  }),
+  getAll: publicProcedure
+    .input(
+      z
+        .object({
+          clientId: z.string().optional(),
+          status: projectStatusEnum.optional(),
+        })
+        .optional()
+    )
+    .query(async ({ ctx, input }) => {
+      return ctx.db.project.findMany({
+        where: {
+          clientId: input?.clientId,
+          status: input?.status,
+        },
+        orderBy: { createdAt: "desc" },
+        include: { client: true },
+      });
+    }),
 
   getByClientId: publicProcedure
     .input(z.object({ clientId: z.string() }))
@@ -44,6 +65,7 @@ export const projectRouter = createTRPCRouter({
         clientId: z.string(),
         name: z.string().min(1, "Name is required"),
         description: z.string().optional(),
+        status: projectStatusEnum.optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -52,6 +74,7 @@ export const projectRouter = createTRPCRouter({
           clientId: input.clientId,
           name: input.name,
           description: input.description,
+          status: input.status,
         },
         include: { client: true },
       });
@@ -63,6 +86,7 @@ export const projectRouter = createTRPCRouter({
         id: z.string(),
         name: z.string().min(1).optional(),
         description: z.string().nullable().optional(),
+        status: projectStatusEnum.optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

@@ -1,5 +1,7 @@
 export type Priority = "low" | "medium" | "high" | "urgent";
 export type TaskStatus = "todo" | "in_progress" | "completed" | "archived";
+export type ProjectStatus = "planning" | "active" | "on_hold" | "completed" | "archived";
+export type BillingStatus = "pending" | "paid";
 export type TimePeriod = "today" | "week" | "month";
 
 export interface Client {

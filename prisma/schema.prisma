@@ -31,6 +31,14 @@ enum BillingStatus {
   paid
 }
 
+enum ProjectStatus {
+  planning
+  active
+  on_hold
+  completed
+  archived
+}
+
 // ============================================================================
 // CORE ENTITIES
 // ============================================================================
@@ -51,12 +59,13 @@ model Client {
 }
 
 model Project {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
   clientId    String
   name        String
   description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  status      ProjectStatus @default(active)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   // Relations
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -64,6 +73,7 @@ model Project {
 
   @@index([clientId])
   @@index([name])
+  @@index([status])
   @@index([createdAt])
 }
 

@@ -15,9 +15,18 @@ const mockProject = {
   clientId: "client-1",
   name: "Test Project",
   description: null,
+  status: "active" as const,
   createdAt: new Date("2024-01-01"),
   updatedAt: new Date("2024-01-01"),
   client: mockClient,
+};
+
+// Default billing fields for tasks
+const defaultBillingFields = {
+  isBillable: false,
+  hourlyRate: null,
+  currency: "USD",
+  billingStatus: "pending" as const,
 };
 
 describe("taskRouter", () => {
@@ -38,6 +47,7 @@ describe("taskRouter", () => {
           createdAt: new Date("2024-01-01"),
           updatedAt: new Date("2024-01-01"),
           completedAt: null,
+          ...defaultBillingFields,
           project: mockProject,
         },
       ];
@@ -226,6 +236,7 @@ describe("taskRouter", () => {
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-01"),
         completedAt: null,
+        ...defaultBillingFields,
         project: mockProject,
         timeEntries: [
           {
@@ -274,6 +285,7 @@ describe("taskRouter", () => {
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-01"),
         completedAt: null,
+        ...defaultBillingFields,
         project: mockProject,
       };
 
@@ -318,6 +330,7 @@ describe("taskRouter", () => {
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-01"),
         completedAt: null,
+        ...defaultBillingFields,
         project: mockProject,
       };
 
@@ -378,6 +391,7 @@ describe("taskRouter", () => {
         isBillable: true,
         hourlyRate: 7500, // $75.00
         currency: "USD",
+        billingStatus: "pending" as const,
         project: mockProject,
       };
 
@@ -435,6 +449,7 @@ describe("taskRouter", () => {
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-01"),
         completedAt: null,
+        ...defaultBillingFields,
         project: mockProject,
       };
 
@@ -463,6 +478,7 @@ describe("taskRouter", () => {
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-01"),
         completedAt: new Date("2024-01-15T10:00:00Z"),
+        ...defaultBillingFields,
         project: mockProject,
       };
 
@@ -497,6 +513,7 @@ describe("taskRouter", () => {
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-01"),
         completedAt: null,
+        ...defaultBillingFields,
         project: mockProject,
       };
 
@@ -534,6 +551,7 @@ describe("taskRouter", () => {
         isBillable: true,
         hourlyRate: 10000,
         currency: "EUR",
+        billingStatus: "pending" as const,
         project: mockProject,
       };
 
@@ -569,6 +587,7 @@ describe("taskRouter", () => {
         isBillable: false,
         hourlyRate: null,
         currency: "USD",
+        billingStatus: "pending" as const,
         project: mockProject,
       };
 
@@ -607,6 +626,7 @@ describe("taskRouter", () => {
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-01"),
         completedAt: null,
+        ...defaultBillingFields,
       };
 
       prismaMock.task.delete.mockResolvedValue(mockTask);

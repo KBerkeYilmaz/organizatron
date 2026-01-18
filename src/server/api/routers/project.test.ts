@@ -19,6 +19,7 @@ describe("projectRouter", () => {
           clientId: "client-1",
           name: "Project A",
           description: "Description A",
+          status: "active" as const,
           createdAt: new Date("2024-01-02"),
           updatedAt: new Date("2024-01-02"),
           client: mockClient,
@@ -32,6 +33,10 @@ describe("projectRouter", () => {
 
       expect(result).toEqual(mockProjects);
       expect(prismaMock.project.findMany).toHaveBeenCalledWith({
+        where: {
+          clientId: undefined,
+          status: undefined,
+        },
         orderBy: { createdAt: "desc" },
         include: { client: true },
       });
@@ -46,6 +51,7 @@ describe("projectRouter", () => {
           clientId: "client-1",
           name: "Project A",
           description: null,
+          status: "active" as const,
           createdAt: new Date(),
           updatedAt: new Date(),
           client: mockClient,
@@ -78,6 +84,7 @@ describe("projectRouter", () => {
         clientId: "client-1",
         name: "Test Project",
         description: "Test description",
+        status: "active" as const,
         createdAt: new Date(),
         updatedAt: new Date(),
         client: mockClient,
@@ -95,6 +102,10 @@ describe("projectRouter", () => {
             createdAt: new Date(),
             updatedAt: new Date(),
             completedAt: null,
+            isBillable: false,
+            hourlyRate: null,
+            currency: "USD",
+            billingStatus: "pending" as const,
           },
         ],
       };
@@ -131,6 +142,7 @@ describe("projectRouter", () => {
         clientId: "client-1",
         name: "New Project",
         description: null,
+        status: "active" as const,
         createdAt: new Date(),
         updatedAt: new Date(),
         client: mockClient,
@@ -150,6 +162,7 @@ describe("projectRouter", () => {
           clientId: "client-1",
           name: "New Project",
           description: undefined,
+          status: undefined,
         },
         include: { client: true },
       });
@@ -161,6 +174,7 @@ describe("projectRouter", () => {
         clientId: "client-1",
         name: "New Project",
         description: "Project description",
+        status: "active" as const,
         createdAt: new Date(),
         updatedAt: new Date(),
         client: mockClient,
@@ -194,6 +208,7 @@ describe("projectRouter", () => {
         clientId: "client-1",
         name: "Updated Name",
         description: null,
+        status: "active" as const,
         createdAt: new Date(),
         updatedAt: new Date(),
         client: mockClient,
@@ -223,6 +238,7 @@ describe("projectRouter", () => {
         clientId: "client-1",
         name: "To Delete",
         description: null,
+        status: "active" as const,
         createdAt: new Date(),
         updatedAt: new Date(),
       };

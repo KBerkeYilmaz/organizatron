@@ -15,6 +15,7 @@ const mockProject = {
   clientId: "client-1",
   name: "Test Project",
   description: null,
+  status: "active" as const,
   createdAt: new Date(),
   updatedAt: new Date(),
   client: mockClient,
@@ -33,6 +34,10 @@ const mockTask = {
   createdAt: new Date(),
   updatedAt: new Date(),
   completedAt: null,
+  isBillable: false,
+  hourlyRate: null,
+  currency: "USD",
+  billingStatus: "pending" as const,
   project: mockProject,
 };
 
