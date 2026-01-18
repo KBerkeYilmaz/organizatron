@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Calendar,
   ChevronDown,
   ChevronRight,
   Clock,
@@ -28,6 +29,7 @@ import { api, type RouterOutputs } from "~/trpc/react";
 
 type FilteredResult = RouterOutputs["timeEntry"]["getFiltered"];
 type TimeEntryGroup = FilteredResult["groups"][number];
+type TimePeriodGroup = FilteredResult["timePeriodGroups"][number];
 
 interface TimeEntriesListProps {
   data: FilteredResult | undefined;
@@ -42,6 +44,9 @@ interface EditingEntry {
 
 export function TimeEntriesList({ data, isLoading }: TimeEntriesListProps) {
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+  const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(
+    new Set()
+  );
   const [editingEntry, setEditingEntry] = useState<EditingEntry | null>(null);
 
   const utils = api.useUtils();
@@ -84,6 +89,18 @@ export function TimeEntriesList({ data, isLoading }: TimeEntriesListProps) {
         next.delete(taskId);
       } else {
         next.add(taskId);
+      }
+      return next;
+    });
+  };
+
+  const togglePeriod = (periodKey: string) => {
+    setExpandedPeriods((prev) => {
+      const next = new Set(prev);
+      if (next.has(periodKey)) {
+        next.delete(periodKey);
+      } else {
+        next.add(periodKey);
       }
       return next;
     });
@@ -158,27 +175,55 @@ export function TimeEntriesList({ data, isLoading }: TimeEntriesListProps) {
     );
   }
 
+  // Determine if we should show period-based grouping
+  const hasPeriodGrouping =
+    data.timeGrouping !== "none" && data.timePeriodGroups.length > 0;
+
   return (
     <div className="space-y-4">
-      {/* Task groups */}
-      <div className="space-y-2">
-        {data.groups.map((group) => (
-          <TaskGroup
-            key={group.task.id}
-            group={group}
-            isExpanded={expandedTasks.has(group.task.id)}
-            onToggle={() => toggleTask(group.task.id)}
-            editingEntry={editingEntry}
-            onStartEditing={startEditing}
-            onSave={handleSave}
-            onCancelEdit={() => setEditingEntry(null)}
-            onDelete={handleDelete}
-            onEditChange={setEditingEntry}
-            isSaving={updateMutation.isPending}
-            isDeleting={deleteMutation.isPending}
-          />
-        ))}
-      </div>
+      {hasPeriodGrouping ? (
+        // Period-based view (for week/month)
+        <div className="space-y-6">
+          {data.timePeriodGroups.map((periodGroup) => (
+            <TimePeriodSection
+              key={periodGroup.key}
+              periodGroup={periodGroup}
+              isExpanded={expandedPeriods.has(periodGroup.key)}
+              onToggle={() => togglePeriod(periodGroup.key)}
+              expandedTasks={expandedTasks}
+              onToggleTask={toggleTask}
+              editingEntry={editingEntry}
+              onStartEditing={startEditing}
+              onSave={handleSave}
+              onCancelEdit={() => setEditingEntry(null)}
+              onDelete={handleDelete}
+              onEditChange={setEditingEntry}
+              isSaving={updateMutation.isPending}
+              isDeleting={deleteMutation.isPending}
+            />
+          ))}
+        </div>
+      ) : (
+        // Flat task groups (for today/short custom ranges)
+        <div className="space-y-2">
+          {data.groups.map((group) => (
+            <TaskGroup
+              key={group.task.id}
+              group={group}
+              isExpanded={expandedTasks.has(group.task.id)}
+              onToggle={() => toggleTask(group.task.id)}
+              editingEntry={editingEntry}
+              onStartEditing={startEditing}
+              onSave={handleSave}
+              onCancelEdit={() => setEditingEntry(null)}
+              onDelete={handleDelete}
+              onEditChange={setEditingEntry}
+              isSaving={updateMutation.isPending}
+              isDeleting={deleteMutation.isPending}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Summary footer */}
       <Card className="bg-muted/30">
@@ -210,7 +255,11 @@ export function TimeEntriesList({ data, isLoading }: TimeEntriesListProps) {
 }
 
 interface TaskGroupProps {
-  group: TimeEntryGroup;
+  group: TimeEntryGroup | {
+    task: TimePeriodGroup["entries"][0]["task"];
+    entries: TimePeriodGroup["entries"];
+    totalDuration: number;
+  };
   isExpanded: boolean;
   onToggle: () => void;
   editingEntry: EditingEntry | null;
@@ -429,4 +478,128 @@ function formatDateTimeLocal(date: Date): string {
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");
   return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+interface TimePeriodSectionProps {
+  periodGroup: TimePeriodGroup;
+  isExpanded: boolean;
+  onToggle: () => void;
+  expandedTasks: Set<string>;
+  onToggleTask: (taskId: string) => void;
+  editingEntry: EditingEntry | null;
+  onStartEditing: (entry: {
+    id: string;
+    startTime: Date;
+    endTime: Date | null;
+  }) => void;
+  onSave: () => void;
+  onCancelEdit: () => void;
+  onDelete: (id: string) => void;
+  onEditChange: (entry: EditingEntry) => void;
+  isSaving: boolean;
+  isDeleting: boolean;
+}
+
+function TimePeriodSection({
+  periodGroup,
+  isExpanded,
+  onToggle,
+  expandedTasks,
+  onToggleTask,
+  editingEntry,
+  onStartEditing,
+  onSave,
+  onCancelEdit,
+  onDelete,
+  onEditChange,
+  isSaving,
+  isDeleting,
+}: TimePeriodSectionProps) {
+  // Group entries by task within this period
+  const taskGroups = periodGroup.entries.reduce(
+    (acc, entry) => {
+      const taskId = entry.taskId;
+      if (!acc[taskId]) {
+        acc[taskId] = {
+          task: entry.task,
+          entries: [],
+          totalDuration: 0,
+        };
+      }
+      acc[taskId]!.entries.push(entry);
+      acc[taskId]!.totalDuration += entry.duration;
+      return acc;
+    },
+    {} as Record<
+      string,
+      {
+        task: TimePeriodGroup["entries"][0]["task"];
+        entries: TimePeriodGroup["entries"];
+        totalDuration: number;
+      }
+    >
+  );
+
+  const sortedTaskGroups = Object.values(taskGroups).sort(
+    (a, b) => b.totalDuration - a.totalDuration
+  );
+
+  return (
+    <Collapsible open={isExpanded} onOpenChange={onToggle} defaultOpen>
+      <CollapsibleTrigger asChild>
+        <button
+          className={cn(
+            "flex w-full items-center justify-between rounded-lg bg-muted/50 px-4 py-3 text-left transition-colors",
+            "hover:bg-muted/70",
+            isExpanded && "rounded-b-none"
+          )}
+        >
+          <div className="flex items-center gap-3">
+            {isExpanded ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <div>
+              <p className="font-medium">{periodGroup.label}</p>
+              <p className="text-xs text-muted-foreground">
+                {periodGroup.entries.length} entr
+                {periodGroup.entries.length !== 1 ? "ies" : "y"} ·{" "}
+                {Object.keys(taskGroups).length} task
+                {Object.keys(taskGroups).length !== 1 ? "s" : ""}
+              </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="font-semibold tabular-nums">
+              {formatDuration(periodGroup.totalDuration)}
+            </p>
+          </div>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="space-y-2 rounded-b-lg border border-t-0 bg-background p-3">
+          {sortedTaskGroups.map((group) => (
+            <TaskGroup
+              key={`${periodGroup.key}-${group.task.id}`}
+              group={group}
+              isExpanded={expandedTasks.has(
+                `${periodGroup.key}-${group.task.id}`
+              )}
+              onToggle={() => onToggleTask(`${periodGroup.key}-${group.task.id}`)}
+              editingEntry={editingEntry}
+              onStartEditing={onStartEditing}
+              onSave={onSave}
+              onCancelEdit={onCancelEdit}
+              onDelete={onDelete}
+              onEditChange={onEditChange}
+              isSaving={isSaving}
+              isDeleting={isDeleting}
+            />
+          ))}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
 }

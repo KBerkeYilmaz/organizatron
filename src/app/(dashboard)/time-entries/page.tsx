@@ -66,7 +66,7 @@ export default function TimeEntriesPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex shrink-0 flex-col gap-4 border-b px-6 py-4">
+      <div className="flex shrink-0 flex-wrap items-center gap-4 border-b px-6 py-4">
         {/* Period filter */}
         <PeriodFilter
           period={period}
@@ -74,6 +74,9 @@ export default function TimeEntriesPage() {
           dateRange={dateRange}
           onDateRangeChange={setDateRange}
         />
+
+        {/* Separator */}
+        <div className="hidden h-8 w-px bg-border sm:block" />
 
         {/* Entity filters */}
         <TimeEntryFilters filters={filters} onFiltersChange={setFilters} />

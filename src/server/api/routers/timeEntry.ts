@@ -34,6 +34,33 @@ function getDateRange(period: "today" | "week" | "month"): {
   return { start, end };
 }
 
+// Helper to get the start of week (Sunday) for a date
+function getWeekStart(date: Date): Date {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayOfWeek = d.getDay();
+  d.setDate(d.getDate() - dayOfWeek);
+  return d;
+}
+
+// Helper to get the end of week (Saturday) for a date
+function getWeekEnd(date: Date): Date {
+  const start = getWeekStart(date);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  return end;
+}
+
+// Helper to get date key for grouping
+function getDateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+// Helper to get week key for grouping
+function getWeekKey(date: Date): string {
+  const weekStart = getWeekStart(date);
+  return getDateKey(weekStart);
+}
+
 export const timeEntryRouter = createTRPCRouter({
   getAll: publicProcedure
     .input(
@@ -125,8 +152,8 @@ export const timeEntryRouter = createTRPCRouter({
               totalDuration: 0,
             };
           }
-          acc[taskId].entries.push(entry);
-          acc[taskId].totalDuration += entry.duration;
+          acc[taskId]!.entries.push(entry);
+          acc[taskId]!.totalDuration += entry.duration;
           return acc;
         },
         {} as Record<
@@ -145,7 +172,7 @@ export const timeEntryRouter = createTRPCRouter({
         .slice(0, input.limit);
     }),
 
-  // Get filtered entries with period and entity filters, grouped by task
+  // Get filtered entries with period and entity filters, grouped by task and time period
   getFiltered: publicProcedure
     .input(
       z.object({
@@ -205,8 +232,8 @@ export const timeEntryRouter = createTRPCRouter({
         },
       });
 
-      // Group by task
-      const grouped = entries.reduce(
+      // Group by task (flat grouping)
+      const groupedByTask = entries.reduce(
         (acc, entry) => {
           const taskId = entry.taskId;
           if (!acc[taskId]) {
@@ -216,19 +243,114 @@ export const timeEntryRouter = createTRPCRouter({
               totalDuration: 0,
             };
           }
-          acc[taskId].entries.push(entry);
-          acc[taskId].totalDuration += entry.duration;
+          acc[taskId]!.entries.push(entry);
+          acc[taskId]!.totalDuration += entry.duration;
           return acc;
         },
         {} as Record<
           string,
           {
-            task: typeof entries[0]["task"];
+            task: (typeof entries)[0]["task"];
             entries: typeof entries;
             totalDuration: number;
           }
         >
       );
+
+      // Determine grouping strategy based on period
+      // - today: no time grouping needed (flat)
+      // - week: group by day
+      // - month: group by week
+      // - custom: determine based on range length
+      type TimeGrouping = "none" | "day" | "week";
+      let timeGrouping: TimeGrouping = "none";
+
+      if (input.period === "week") {
+        timeGrouping = "day";
+      } else if (input.period === "month") {
+        timeGrouping = "week";
+      } else if (input.period === "custom" && input.startDate && input.endDate) {
+        const daysDiff = Math.ceil(
+          (input.endDate.getTime() - input.startDate.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        if (daysDiff > 14) {
+          timeGrouping = "week";
+        } else if (daysDiff > 1) {
+          timeGrouping = "day";
+        }
+      }
+
+      // Group entries by time period
+      type TimePeriodGroup = {
+        key: string;
+        label: string;
+        startDate: Date;
+        endDate: Date;
+        entries: typeof entries;
+        totalDuration: number;
+      };
+
+      const timePeriodGroups: TimePeriodGroup[] = [];
+
+      if (timeGrouping !== "none") {
+        const periodMap = new Map<string, TimePeriodGroup>();
+
+        for (const entry of entries) {
+          const entryDate = new Date(entry.startTime);
+          let key: string;
+          let periodStart: Date;
+          let periodEnd: Date;
+          let label: string;
+
+          if (timeGrouping === "day") {
+            key = getDateKey(entryDate);
+            periodStart = new Date(entryDate.getFullYear(), entryDate.getMonth(), entryDate.getDate());
+            periodEnd = new Date(periodStart);
+            periodEnd.setDate(periodEnd.getDate() + 1);
+            label = entryDate.toLocaleDateString("en-US", {
+              weekday: "long",
+              month: "short",
+              day: "numeric",
+            });
+          } else {
+            // week grouping
+            key = getWeekKey(entryDate);
+            periodStart = getWeekStart(entryDate);
+            periodEnd = getWeekEnd(entryDate);
+            const weekEndLabel = periodEnd.toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+            });
+            const weekStartLabel = periodStart.toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+            });
+            label = `${weekStartLabel} - ${weekEndLabel}`;
+          }
+
+          if (!periodMap.has(key)) {
+            periodMap.set(key, {
+              key,
+              label,
+              startDate: periodStart,
+              endDate: periodEnd,
+              entries: [],
+              totalDuration: 0,
+            });
+          }
+
+          const group = periodMap.get(key)!;
+          group.entries.push(entry);
+          group.totalDuration += entry.duration;
+        }
+
+        // Sort by date descending (most recent first)
+        timePeriodGroups.push(
+          ...Array.from(periodMap.values()).sort(
+            (a, b) => b.startDate.getTime() - a.startDate.getTime()
+          )
+        );
+      }
 
       // Calculate totals
       const totalDuration = entries.reduce((sum, e) => sum + e.duration, 0);
@@ -236,12 +358,14 @@ export const timeEntryRouter = createTRPCRouter({
       const billableDuration = billableEntries.reduce((sum, e) => sum + e.duration, 0);
 
       return {
-        groups: Object.values(grouped).sort((a, b) => b.totalDuration - a.totalDuration),
+        groups: Object.values(groupedByTask).sort((a, b) => b.totalDuration - a.totalDuration),
+        timePeriodGroups,
+        timeGrouping,
         summary: {
           totalDuration,
           billableDuration,
           entryCount: entries.length,
-          taskCount: Object.keys(grouped).length,
+          taskCount: Object.keys(groupedByTask).length,
         },
         dateRange: { start, end },
       };
