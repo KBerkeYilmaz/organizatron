@@ -52,7 +52,7 @@ const navigation = [
   },
   {
     title: "Time Entries",
-    href: "/time",
+    href: "/time-entries",
     icon: Timer,
   },
   {

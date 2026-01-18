@@ -95,7 +95,7 @@ export default function TasksPage() {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* Header */}
-      <header className="flex h-16 shrink-0 items-center justify-between border-b px-6">
+      <header className="flex h-[65px] shrink-0 items-center justify-between border-b bg-background px-6">
         <div>
           <h1 className="text-xl font-semibold">Tasks</h1>
           <p className="text-sm text-muted-foreground">
@@ -143,7 +143,7 @@ export default function TasksPage() {
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto p-6">
+      <main className="flex-1 overflow-y-auto p-6">
         <TaskTable
           tasks={tasks ?? []}
           isLoading={isLoading}
@@ -151,7 +151,7 @@ export default function TasksPage() {
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
         />
-      </div>
+      </main>
 
       {/* Dialog */}
       <TaskDialog

@@ -59,7 +59,7 @@ export default function ProjectsPage() {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* Header */}
-      <header className="flex h-16 shrink-0 items-center justify-between border-b px-6">
+      <header className="flex h-[65px] shrink-0 items-center justify-between border-b bg-background px-6">
         <div>
           <h1 className="text-xl font-semibold">Projects</h1>
           <p className="text-sm text-muted-foreground">
@@ -142,7 +142,7 @@ export default function ProjectsPage() {
       </div>
 
       {/* Kanban Board */}
-      <div className="flex-1 overflow-auto p-6">
+      <main className="flex-1 overflow-y-auto p-6">
         {!clientId ? (
           <EmptyState
             icon={FolderKanban}
@@ -162,7 +162,7 @@ export default function ProjectsPage() {
             onEditTask={handleEditTask}
           />
         )}
-      </div>
+      </main>
 
       {/* Project Dialog */}
       <ProjectDialog

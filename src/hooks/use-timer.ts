@@ -23,6 +23,8 @@ import {
   type TimerTask,
 } from "~/store/timer-atoms";
 import { formatTimer } from "~/lib/format";
+import { hasPendingActions } from "~/lib/offline-queue";
+import { hasPersistedTimerState } from "~/lib/timer-storage";
 
 export function useTimer() {
   const utils = api.useUtils();
@@ -83,13 +85,14 @@ export function useTimer() {
       staleTime: Infinity,
     });
 
-  // Sync server data to Jotai ONLY on initial load
+  // Sync server data to Jotai on initial load
+  // Server is the source of truth for persisted timer state
   useEffect(() => {
     if (isLoadingTimer || hasInitialSyncRef.current) return;
 
-    hasInitialSyncRef.current = true;
-
     if (serverTimer) {
+      // Server has an active timer - sync it to Jotai immediately
+      hasInitialSyncRef.current = true;
       syncFromServer({
         id: serverTimer.id,
         taskId: serverTimer.taskId,
@@ -110,8 +113,25 @@ export function useTimer() {
           },
         },
       });
+    } else {
+      // Server has NO timer - wait briefly for BroadcastChannel sync and localStorage restore
+      // then check if we have stale state that needs to be reset
+      const timeoutId = setTimeout(() => {
+        if (hasInitialSyncRef.current) return; // Another effect already handled it
+        hasInitialSyncRef.current = true;
+
+        // Don't reset if:
+        // 1. There are pending offline actions (offline mode)
+        // 2. There's persisted state in localStorage (sleep/refresh recovery)
+        // The useTimerPersistence hook will restore from localStorage if needed
+        if (!hasPendingActions() && !hasPersistedTimerState()) {
+          // No server timer, no offline queue, no persisted state - reset to idle
+          syncFromServer(null);
+        }
+      }, 100); // Small delay to let BroadcastChannel/localStorage sync happen
+
+      return () => clearTimeout(timeoutId);
     }
-    // No else - don't reset if no server timer, Jotai already starts with idle state
   }, [serverTimer, isLoadingTimer, syncFromServer]);
 
   // tRPC mutations - no invalidation needed, Jotai is source of truth
@@ -168,9 +188,14 @@ export function useTimer() {
 
   const stopMutation = api.activeTimer.stop.useMutation({
     onSuccess: (data) => {
+      // If data is null, timer was already stopped (race condition) - silently ignore
+      if (!data) {
+        return;
+      }
       // State already reset optimistically, just show toast and invalidate
       void utils.timeEntry.getRecent.invalidate();
       void utils.timeEntry.getRecentGroupedByTask.invalidate();
+      void utils.timeEntry.getFiltered.invalidate();
       void utils.stats.invalidate();
       toast.success("Time entry saved", {
         description: `${formatTimer(data.duration)} logged for "${data.task.title}"`,
@@ -188,7 +213,11 @@ export function useTimer() {
   });
 
   const discardMutation = api.activeTimer.discard.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // If data is null, timer was already discarded (race condition) - silently ignore
+      if (!data) {
+        return;
+      }
       // State already reset optimistically, show toast with undo option
       toast.warning("Timer discarded", {
         description: "Time was not saved",
@@ -286,12 +315,15 @@ export function useTimer() {
       stopTimer();
       stopMutation.mutate(undefined, {
         onSuccess: (data) => {
-          void utils.timeEntry.getRecent.invalidate();
-          void utils.timeEntry.getRecentGroupedByTask.invalidate();
-          void utils.stats.invalidate();
-          toast.success("Switched tasks", {
-            description: `${formatTimer(data.duration)} saved, now tracking "${newTask.title}"`,
-          });
+          if (data) {
+            void utils.timeEntry.getRecent.invalidate();
+            void utils.timeEntry.getRecentGroupedByTask.invalidate();
+            void utils.timeEntry.getFiltered.invalidate();
+            void utils.stats.invalidate();
+            toast.success("Switched tasks", {
+              description: `${formatTimer(data.duration)} saved, now tracking "${newTask.title}"`,
+            });
+          }
         },
         onError: (error) => {
           // Restore previous state on error

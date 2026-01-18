@@ -36,6 +36,7 @@ export function ActiveTimer({ className }: ActiveTimerProps) {
     isRunning,
     isPaused,
     isLoading,
+    isMutating,
     task,
     start,
     pause,
@@ -218,6 +219,7 @@ export function ActiveTimer({ className }: ActiveTimerProps) {
                     variant="outline"
                     size="icon"
                     onClick={isRunning ? handlePause : handleResume}
+                    disabled={isMutating}
                   >
                     {isRunning ? (
                       <Pause className="h-4 w-4" />
@@ -237,6 +239,7 @@ export function ActiveTimer({ className }: ActiveTimerProps) {
                     variant="destructive"
                     size="icon"
                     onClick={handleStop}
+                    disabled={isMutating}
                   >
                     <Square className="h-4 w-4" />
                   </Button>
@@ -250,6 +253,7 @@ export function ActiveTimer({ className }: ActiveTimerProps) {
                     variant="ghost"
                     size="icon"
                     onClick={handleDiscard}
+                    disabled={isMutating}
                     className="text-muted-foreground hover:text-destructive"
                   >
                     <X className="h-4 w-4" />

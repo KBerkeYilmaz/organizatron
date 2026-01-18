@@ -1,16 +1,27 @@
 "use client";
 
+import { Activity } from "lucide-react";
+import { useState } from "react";
+
 import { ActiveTimer } from "~/components/active-timer";
+import { ActivitySidebar } from "~/components/activity-sidebar";
 import { ClientTimeSummary } from "~/components/client-time-summary";
 import { ProjectsOverview } from "~/components/projects-overview";
 import { QuickAdd } from "~/components/quick-add";
-import { RecentActivity } from "~/components/recent-activity";
 import { TaskTimeEntries } from "~/components/task-time-entries";
 import { ThemeToggle } from "~/components/theme-toggle";
 import { TodayTasks } from "~/components/today-tasks";
+import { Button } from "~/components/ui/button";
 import { SidebarTrigger } from "~/components/ui/sidebar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
 
 export default function DashboardPage() {
+  const [activityOpen, setActivityOpen] = useState(false);
+
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
@@ -32,6 +43,18 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setActivityOpen(true)}
+                >
+                  <Activity className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Recent Activity</TooltipContent>
+            </Tooltip>
             <ThemeToggle />
             <QuickAdd />
           </div>
@@ -53,16 +76,18 @@ export default function DashboardPage() {
               <TodayTasks />
             </div>
 
-            {/* Right Column - Time Summary, Projects & Activity */}
+            {/* Right Column - Time Summary & Projects */}
             <div className="space-y-8 lg:col-span-2">
               <ClientTimeSummary />
               <TaskTimeEntries />
               <ProjectsOverview />
-              <RecentActivity />
             </div>
           </div>
         </div>
       </main>
+
+      {/* Activity Sidebar */}
+      <ActivitySidebar open={activityOpen} onOpenChange={setActivityOpen} />
     </>
   );
 }

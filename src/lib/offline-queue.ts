@@ -142,13 +142,10 @@ function optimizeQueue(actions: QueuedAction[]): QueuedAction[] {
     }
 
     // Stop or Discard clears everything before it
+    // Since there's only one active timer, stop/discard ends the current session
     if (action.type === "stop" || action.type === "discard") {
-      // Keep only start actions that aren't for the stopped task
-      const startActions = result.filter(
-        (a) => a.type === "start" && a.payload?.taskId !== action.payload?.taskId
-      );
       result.length = 0;
-      result.push(...startActions, action);
+      result.push(action);
       continue;
     }
 

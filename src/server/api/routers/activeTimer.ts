@@ -147,10 +147,9 @@ export const activeTimerRouter = createTRPCRouter({
     const timer = await ctx.db.activeTimer.findFirst();
 
     if (!timer) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "No active timer to stop",
-      });
+      // Return null instead of throwing - timer might have already been stopped
+      // This handles race conditions from rapid clicks or multiple tabs
+      return null;
     }
 
     // Calculate total duration (if paused, elapsed is already final)
@@ -195,10 +194,9 @@ export const activeTimerRouter = createTRPCRouter({
     const timer = await ctx.db.activeTimer.findFirst();
 
     if (!timer) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "No active timer to discard",
-      });
+      // Return null instead of throwing - timer might have already been discarded
+      // This handles race conditions from rapid clicks or multiple tabs
+      return null;
     }
 
     return ctx.db.activeTimer.delete({

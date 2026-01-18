@@ -4,6 +4,7 @@ import { useDocumentTitle } from "~/hooks/use-document-title";
 import { useTimerHotkeys } from "~/hooks/use-timer-hotkeys";
 import { useTimerSync } from "~/hooks/use-timer-sync";
 import { useOfflineSync } from "~/hooks/use-offline-sync";
+import { useTimerPersistence } from "~/hooks/use-timer-persistence";
 
 interface TimerProviderProps {
   children: React.ReactNode;
@@ -15,6 +16,7 @@ interface TimerProviderProps {
  * - Keyboard shortcuts (Space, S, D)
  * - Cross-tab sync (BroadcastChannel)
  * - Offline action queue sync
+ * - LocalStorage persistence (survives sleep/refresh)
  *
  * Place this near the root of your app, inside the Jotai Provider.
  */
@@ -24,6 +26,7 @@ export function TimerProvider({ children }: TimerProviderProps) {
   useTimerHotkeys();
   useTimerSync();
   useOfflineSync();
+  useTimerPersistence();
 
   return <>{children}</>;
 }

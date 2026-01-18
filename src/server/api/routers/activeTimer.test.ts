@@ -308,14 +308,14 @@ describe("activeTimerRouter", () => {
       );
     });
 
-    it("throws error when no timer to stop", async () => {
+    it("returns null when no timer to stop (handles race conditions)", async () => {
       prismaMock.activeTimer.findFirst.mockResolvedValue(null);
 
       const caller = createTestCaller();
+      const result = await caller.activeTimer.stop();
 
-      await expect(caller.activeTimer.stop()).rejects.toThrow(
-        "No active timer to stop"
-      );
+      // Returns null instead of throwing - handles race conditions from rapid clicks or multiple tabs
+      expect(result).toBeNull();
     });
   });
 
@@ -334,14 +334,14 @@ describe("activeTimerRouter", () => {
       expect(prismaMock.timeEntry.create).not.toHaveBeenCalled();
     });
 
-    it("throws error when no timer to discard", async () => {
+    it("returns null when no timer to discard (handles race conditions)", async () => {
       prismaMock.activeTimer.findFirst.mockResolvedValue(null);
 
       const caller = createTestCaller();
+      const result = await caller.activeTimer.discard();
 
-      await expect(caller.activeTimer.discard()).rejects.toThrow(
-        "No active timer to discard"
-      );
+      // Returns null instead of throwing - handles race conditions from rapid clicks or multiple tabs
+      expect(result).toBeNull();
     });
   });
 });
