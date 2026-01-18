@@ -38,6 +38,7 @@ import { useTimer } from "~/hooks/use-timer";
 
 type TaskStatus = "todo" | "in_progress" | "completed" | "archived";
 type TaskPriority = "low" | "medium" | "high" | "urgent";
+type BillingStatus = "pending" | "paid";
 
 interface Task {
   id: string;
@@ -54,6 +55,7 @@ interface Task {
   isBillable: boolean;
   hourlyRate: number | null;
   currency: string;
+  billingStatus: BillingStatus;
   project: {
     id: string;
     name: string;
@@ -341,12 +343,28 @@ export function TaskTable({
                       </span>
                       {task.isBillable && (
                         <span
-                          className="flex items-center justify-center h-4 w-4 rounded-full bg-emerald-100 dark:bg-emerald-900/30"
-                          title={task.hourlyRate
-                            ? `${(task.hourlyRate / 100).toFixed(2)} ${task.currency}/hr`
-                            : "Billable"}
+                          className={cn(
+                            "flex items-center justify-center h-4 w-4 rounded-full",
+                            task.billingStatus === "paid"
+                              ? "bg-emerald-100 dark:bg-emerald-900/30"
+                              : "bg-amber-100 dark:bg-amber-900/30"
+                          )}
+                          title={
+                            task.hourlyRate
+                              ? `${(task.hourlyRate / 100).toFixed(2)} ${task.currency}/hr - ${task.billingStatus === "paid" ? "Paid" : "Pending"}`
+                              : task.billingStatus === "paid"
+                                ? "Paid"
+                                : "Pending payment"
+                          }
                         >
-                          <DollarSign className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                          <DollarSign
+                            className={cn(
+                              "h-3 w-3",
+                              task.billingStatus === "paid"
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-amber-600 dark:text-amber-400"
+                            )}
+                          />
                         </span>
                       )}
                     </div>

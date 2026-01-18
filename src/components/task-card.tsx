@@ -37,6 +37,7 @@ interface TaskWithRelations {
   isBillable: boolean;
   hourlyRate: number | null;
   currency: string;
+  billingStatus: "pending" | "paid";
   project: {
     id: string;
     name: string;

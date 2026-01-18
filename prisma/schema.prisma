@@ -26,6 +26,11 @@ enum Priority {
   urgent
 }
 
+enum BillingStatus {
+  pending
+  paid
+}
+
 // ============================================================================
 // CORE ENTITIES
 // ============================================================================
@@ -77,9 +82,10 @@ model Task {
   completedAt   DateTime?
 
   // Billing
-  isBillable Boolean @default(false)
-  hourlyRate Int?    // in cents (e.g., 5000 = $50.00)
-  currency   String  @default("USD") // ISO 4217 currency code
+  isBillable    Boolean       @default(false)
+  hourlyRate    Int?          // in cents (e.g., 5000 = $50.00)
+  currency      String        @default("USD") // ISO 4217 currency code
+  billingStatus BillingStatus @default(pending)
 
   // Relations
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)

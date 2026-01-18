@@ -44,6 +44,7 @@ const CURRENCIES = [
 
 type TaskStatus = "todo" | "in_progress" | "completed" | "archived";
 type TaskPriority = "low" | "medium" | "high" | "urgent";
+type BillingStatus = "pending" | "paid";
 
 interface Task {
   id: string;
@@ -59,6 +60,7 @@ interface Task {
   isBillable: boolean;
   hourlyRate: number | null;
   currency: string;
+  billingStatus: BillingStatus;
   project: {
     id: string;
     name: string;
@@ -98,6 +100,7 @@ export function TaskDialog({
   const [isBillable, setIsBillable] = useState(false);
   const [hourlyRate, setHourlyRate] = useState("");
   const [currency, setCurrency] = useState("USD");
+  const [billingStatus, setBillingStatus] = useState<BillingStatus>("pending");
 
   const utils = api.useUtils();
 
@@ -118,6 +121,7 @@ export function TaskDialog({
       setIsBillable(task.isBillable);
       setHourlyRate(task.hourlyRate ? String(task.hourlyRate / 100) : "");
       setCurrency(task.currency);
+      setBillingStatus(task.billingStatus);
     } else {
       resetForm();
       if (defaultProjectId) {
@@ -139,6 +143,7 @@ export function TaskDialog({
     setIsBillable(false);
     setHourlyRate("");
     setCurrency("USD");
+    setBillingStatus("pending");
   };
 
   // Queries
@@ -213,6 +218,7 @@ export function TaskDialog({
         isBillable,
         hourlyRate: parsedHourlyRate,
         currency,
+        billingStatus,
       });
     } else {
       createTask.mutate({
@@ -227,6 +233,7 @@ export function TaskDialog({
         isBillable,
         hourlyRate: parsedHourlyRate ?? undefined,
         currency,
+        billingStatus: isBillable ? billingStatus : undefined,
       });
     }
   };
@@ -235,7 +242,7 @@ export function TaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-w-lg">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>
@@ -418,38 +425,66 @@ export function TaskDialog({
               </div>
 
               {isBillable && (
-                <div className="grid grid-cols-2 gap-4 pt-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="hourlyRate">Hourly Rate</Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                        {CURRENCIES.find((c) => c.code === currency)?.symbol ?? "$"}
-                      </span>
-                      <Input
-                        id="hourlyRate"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        value={hourlyRate}
-                        onChange={(e) => setHourlyRate(e.target.value)}
-                        className="pl-7"
-                      />
+                <div className="space-y-4 pt-2">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="hourlyRate">Hourly Rate</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                          {CURRENCIES.find((c) => c.code === currency)?.symbol ?? "$"}
+                        </span>
+                        <Input
+                          id="hourlyRate"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={hourlyRate}
+                          onChange={(e) => setHourlyRate(e.target.value)}
+                          className="pl-7"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Currency</Label>
+                      <Select value={currency} onValueChange={setCurrency}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CURRENCIES.map((curr) => (
+                            <SelectItem key={curr.code} value={curr.code}>
+                              {curr.symbol} {curr.code}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Currency</Label>
-                    <Select value={currency} onValueChange={setCurrency}>
+                    <Label>Payment Status</Label>
+                    <Select
+                      value={billingStatus}
+                      onValueChange={(v) => setBillingStatus(v as BillingStatus)}
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {CURRENCIES.map((curr) => (
-                          <SelectItem key={curr.code} value={curr.code}>
-                            {curr.symbol} {curr.code}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="pending">
+                          <span className="flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-amber-500" />
+                            Pending
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="paid">
+                          <span className="flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                            Paid
+                          </span>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

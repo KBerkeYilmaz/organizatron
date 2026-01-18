@@ -3,6 +3,7 @@ import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 
 const taskStatusEnum = z.enum(["todo", "in_progress", "completed", "archived"]);
 const priorityEnum = z.enum(["low", "medium", "high", "urgent"]);
+const billingStatusEnum = z.enum(["pending", "paid"]);
 
 export const taskRouter = createTRPCRouter({
   getAll: publicProcedure
@@ -17,6 +18,7 @@ export const taskRouter = createTRPCRouter({
           priorities: z.array(priorityEnum).optional(),
           search: z.string().optional(),
           isBillable: z.boolean().optional(),
+          billingStatus: billingStatusEnum.optional(),
         })
         .optional()
     )
@@ -47,6 +49,10 @@ export const taskRouter = createTRPCRouter({
           // Filter by billable status
           ...(input?.isBillable !== undefined && {
             isBillable: input.isBillable,
+          }),
+          // Filter by billing status (pending/paid)
+          ...(input?.billingStatus && {
+            billingStatus: input.billingStatus,
           }),
         },
         orderBy: { createdAt: "desc" },
@@ -93,6 +99,7 @@ export const taskRouter = createTRPCRouter({
         isBillable: z.boolean().optional(),
         hourlyRate: z.number().int().positive().optional(), // in cents
         currency: z.string().length(3).optional(), // ISO 4217
+        billingStatus: billingStatusEnum.optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -109,6 +116,7 @@ export const taskRouter = createTRPCRouter({
           isBillable: input.isBillable,
           hourlyRate: input.hourlyRate,
           currency: input.currency,
+          billingStatus: input.billingStatus,
         },
         include: {
           project: {
@@ -133,6 +141,7 @@ export const taskRouter = createTRPCRouter({
         isBillable: z.boolean().optional(),
         hourlyRate: z.number().int().positive().nullable().optional(), // in cents
         currency: z.string().length(3).optional(), // ISO 4217
+        billingStatus: billingStatusEnum.optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
