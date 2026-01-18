@@ -2,6 +2,23 @@
 
 AI-powered task organizer and time tracker with intelligent scheduling.
 
+## Current Status
+
+Core time tracking is implemented:
+
+- **Dashboard**: Today's tasks, time summary, recent activity, projects overview
+- **Tasks Page**: CRUD, table view, filtering, bulk operations
+- **Projects Page**: Kanban board with drag-and-drop
+- **Time Entries Page**: Period/entity filtering
+- **Active Timer**: Media player-style controls
+- **Billable Tasks**: Hourly rates, currency, billing status
+- **Offline Sync**: Queue actions offline, sync with retry
+- **Timer Persistence**: localStorage survival
+
+### Database: Client → Project → Task → TimeEntry + ActiveTimer
+
+### tRPC Routers: clients, project, task, timeEntry, activeTimer, stats
+
 ## Project Vision
 
 A demo project for learning AI integrations, AWS services, and Supabase functions. The app acts as a smart time tracker that:
@@ -16,12 +33,15 @@ A demo project for learning AI integrations, AWS services, and Supabase function
 - **Framework**: Next.js 16 (App Router, Turbopack)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS v4
-- **Database**: PostgreSQL via Prisma ORM
-- **Backend**: Supabase (auth, storage, realtime)
-- **API Layer**: tRPC with React Query
-- **Auth**: Better Auth
+- **UI Components**: shadcn/ui + Radix primitives
+- **Database**: PostgreSQL via Prisma 7
+- **Backend**: Supabase (planned for auth, storage, realtime)
+- **API Layer**: tRPC v11 with React Query v5
+- **State Management**: Jotai for timer state
+- **Drag & Drop**: dnd-kit for Kanban
+- **Auth**: Better Auth (planned)
 - **Deployment**: AWS (target platform)
-- **AI**: Claude API for intelligent features
+- **AI**: Claude API for intelligent features (planned)
 
 ## Package Manager
 
@@ -45,24 +65,44 @@ pnpm test:e2e:ui      # Run E2E tests with UI
 
 ```
 src/
-├── app/              # Next.js App Router pages
-├── components/       # React components
-│   └── ui/           # shadcn/ui components
-├── lib/              # Utilities and configurations
-├── server/           # tRPC routers and server logic
-├── styles/           # Global styles
-└── trpc/             # tRPC client setup
+├── app/                    # Next.js App Router pages
+│   └── (dashboard)/        # Dashboard layout group
+│       ├── page.tsx        # Home/Dashboard
+│       ├── tasks/          # Tasks list page
+│       ├── projects/       # Projects Kanban page
+│       └── time-entries/   # Time entries page
+├── components/             # React components
+│   ├── ui/                 # shadcn/ui components
+│   ├── active-timer.tsx    # Timer component
+│   ├── task-*.tsx          # Task-related components
+│   ├── project-*.tsx       # Project-related components
+│   └── time-*.tsx          # Time entry components
+├── hooks/                  # Custom React hooks
+│   ├── use-timer.ts        # Timer logic hook
+│   ├── use-offline-sync.ts # Offline sync hook
+│   └── use-timer-*.ts      # Timer utility hooks
+├── lib/                    # Utilities and configurations
+│   ├── offline-queue.ts    # Offline action queue
+│   ├── timer-storage.ts    # Timer localStorage persistence
+│   └── format.ts           # Formatting utilities
+├── server/                 # tRPC routers and server logic
+│   └── api/routers/        # Individual tRPC routers
+├── store/                  # Jotai atoms
+│   └── timer-atoms.ts      # Timer state atoms
+├── styles/                 # Global styles
+└── trpc/                   # tRPC client setup
 prisma/
-└── schema.prisma     # Database schema
-e2e/                  # Playwright E2E tests
+└── schema.prisma           # Database schema
+e2e/                        # Playwright E2E tests
 ```
 
-## Key Integrations (Planned)
+## Upcoming Features
 
-1. **Google Calendar API** - For task scheduling
-2. **Supabase** - Backend services (auth, db, storage)
-3. **AWS Services** - Deployment and serverless functions
-4. **Claude API** - AI-powered suggestions and task analysis
+1. **Authentication** - Better Auth integration with user sessions
+2. **Google Calendar API** - Sync tasks and time blocks to calendar
+3. **AI Features** - Claude-powered task suggestions and time estimates
+4. **Reports** - Detailed time reports with export options
+5. **Team Support** - Multi-user with roles and permissions
 
 ## Development Guidelines
 
@@ -70,6 +110,7 @@ e2e/                  # Playwright E2E tests
 - Validate all inputs with Zod schemas
 - Use tRPC for type-safe API calls
 - Follow existing code patterns in the codebase
+- Timer actions should work offline (queued and synced)
 
 ## Testing Strategy (TDD)
 
@@ -88,9 +129,9 @@ src/
 ├── lib/
 │   ├── utils.ts          # Implementation
 │   └── utils.test.ts     # Unit tests (colocated)
-├── components/
-│   ├── Button.tsx
-│   └── Button.test.tsx   # Component tests (colocated)
+├── server/api/routers/
+│   ├── task.ts           # Router implementation
+│   └── task.test.ts      # Router tests (colocated)
 e2e/
 └── home.spec.ts          # E2E tests (separate folder)
 ```
