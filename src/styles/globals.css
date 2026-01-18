@@ -206,3 +206,12 @@
     letter-spacing: var(--tracking-normal);
   }
 }
+
+/* Scrollbar hide utility for horizontal scroll sections */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

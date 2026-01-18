@@ -5,7 +5,6 @@ import Link from "next/link";
 
 import { TaskCard } from "~/components/task-card";
 import { Button } from "~/components/ui/button";
-import { ScrollArea } from "~/components/ui/scroll-area";
 import { api } from "~/trpc/react";
 
 export function TodayTasks() {
@@ -45,13 +44,11 @@ export function TodayTasks() {
           </p>
         </div>
       ) : (
-        <ScrollArea className="h-[400px] pr-4">
-          <div className="flex flex-col gap-3">
-            {tasks?.map((task) => (
-              <TaskCard key={task.id} task={task} />
-            ))}
-          </div>
-        </ScrollArea>
+        <div className="flex flex-col gap-3 pr-4">
+          {tasks?.map((task) => (
+            <TaskCard key={task.id} task={task} />
+          ))}
+        </div>
       )}
     </div>
   );
