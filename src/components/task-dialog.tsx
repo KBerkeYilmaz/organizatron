@@ -242,8 +242,8 @@ export function TaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <form onSubmit={handleSubmit}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <form onSubmit={handleSubmit} className="min-w-0">
           <DialogHeader>
             <DialogTitle>
               {isEditing ? "Edit Task" : "Create Task"}
