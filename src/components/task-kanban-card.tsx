@@ -2,7 +2,7 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Calendar, DollarSign, GripVertical, MoreHorizontal, Pencil, Play, Trash2 } from "lucide-react";
+import { Calendar, DollarSign, GripVertical, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "~/components/ui/badge";
@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import { useTimer } from "~/hooks/use-timer";
+import { TaskTimerButton } from "~/components/task-timer-button";
 import { cn } from "~/lib/utils";
 import type { Priority } from "~/lib/types";
 import type { TimerTask } from "~/store/timer-atoms";
@@ -71,7 +71,6 @@ const priorityConfig: Record<Priority, { label: string; className: string }> = {
 };
 
 export function TaskKanbanCard({ task, isDragging, onEdit }: TaskKanbanCardProps) {
-  const { switchTask } = useTimer();
   const utils = api.useUtils();
   const priority = priorityConfig[task.priority];
 
@@ -99,25 +98,22 @@ export function TaskKanbanCard({ task, isDragging, onEdit }: TaskKanbanCardProps
     },
   });
 
-  const handleStartTimer = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const timerTask: TimerTask = {
-      id: task.id,
-      title: task.title,
-      project: {
-        id: task.project.id,
-        name: task.project.name,
-        client: {
-          id: task.project.client.id,
-          name: task.project.client.name,
-          color: task.project.client.color,
-        },
+  // Create timer task object for the TaskTimerButton
+  const timerTask: TimerTask = {
+    id: task.id,
+    title: task.title,
+    project: {
+      id: task.project.id,
+      name: task.project.name,
+      client: {
+        id: task.project.client.id,
+        name: task.project.client.name,
+        color: task.project.client.color,
       },
-      isBillable: task.isBillable,
-      hourlyRate: task.hourlyRate,
-      currency: task.currency,
-    };
-    switchTask(timerTask);
+    },
+    isBillable: task.isBillable,
+    hourlyRate: task.hourlyRate,
+    currency: task.currency,
   };
 
   const handleDelete = (e: React.MouseEvent) => {
@@ -205,14 +201,11 @@ export function TaskKanbanCard({ task, isDragging, onEdit }: TaskKanbanCardProps
         {/* Actions */}
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           {task.status !== "completed" && (
-            <Button
-              variant="ghost"
-              size="icon"
+            <TaskTimerButton
+              task={timerTask}
               className="h-6 w-6"
-              onClick={handleStartTimer}
-            >
-              <Play className="h-3 w-3 fill-current" />
-            </Button>
+              iconSize="sm"
+            />
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

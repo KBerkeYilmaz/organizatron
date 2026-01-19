@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar, Clock, MoreHorizontal, Pencil, Play, Trash2 } from "lucide-react";
+import { Calendar, Clock, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "~/components/ui/badge";
@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import { useTimer } from "~/hooks/use-timer";
+import { TaskTimerButton } from "~/components/task-timer-button";
 import { formatDuration } from "~/lib/format";
 import { cn } from "~/lib/utils";
 import type { Priority } from "~/lib/types";
@@ -82,7 +82,6 @@ export function TaskCard({ task, compact = false, onEdit }: TaskCardProps) {
   const project = task.project;
   const client = task.project.client;
   const priority = priorityConfig[task.priority];
-  const { switchTask } = useTimer();
   const utils = api.useUtils();
 
   const deleteMutation = api.task.delete.useMutation({
@@ -95,24 +94,22 @@ export function TaskCard({ task, compact = false, onEdit }: TaskCardProps) {
     },
   });
 
-  const handleStartTimer = () => {
-    const timerTask: TimerTask = {
-      id: task.id,
-      title: task.title,
-      project: {
-        id: project.id,
-        name: project.name,
-        client: {
-          id: client.id,
-          name: client.name,
-          color: client.color,
-        },
+  // Create timer task object for the TaskTimerButton
+  const timerTask: TimerTask = {
+    id: task.id,
+    title: task.title,
+    project: {
+      id: project.id,
+      name: project.name,
+      client: {
+        id: client.id,
+        name: client.name,
+        color: client.color,
       },
-      isBillable: task.isBillable,
-      hourlyRate: task.hourlyRate,
-      currency: task.currency,
-    };
-    switchTask(timerTask);
+    },
+    isBillable: task.isBillable,
+    hourlyRate: task.hourlyRate,
+    currency: task.currency,
   };
 
   const handleDelete = () => {
@@ -219,17 +216,14 @@ export function TaskCard({ task, compact = false, onEdit }: TaskCardProps) {
               </DropdownMenu>
             </div>
 
-            {/* Quick start button */}
+            {/* Quick start/pause button */}
             {task.status !== "completed" && (
-              <Button
-                variant="ghost"
+              <TaskTimerButton
+                task={timerTask}
                 size="sm"
                 className="h-7 gap-1.5 px-2 text-xs opacity-0 transition-opacity group-hover:opacity-100"
-                onClick={handleStartTimer}
-              >
-                <Play className="h-3 w-3 fill-current" />
-                Start
-              </Button>
+                iconSize="sm"
+              />
             )}
           </div>
         </div>

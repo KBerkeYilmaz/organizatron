@@ -43,7 +43,7 @@ export function KanbanColumn({ status, tasks, onAddTask, onEditTask }: KanbanCol
   return (
     <div
       className={cn(
-        "flex flex-col rounded-lg border bg-muted/30 min-w-[280px] w-[280px]",
+        "flex flex-col rounded-lg border bg-muted/30 min-w-[200px] flex-1",
         isOver && "ring-2 ring-primary/50"
       )}
     >

@@ -59,7 +59,7 @@ export function TimeEntriesList({ data, isLoading }: TimeEntriesListProps) {
   const [editingTask, setEditingTask] = useState<EditingTask | null>(null);
 
   const utils = api.useUtils();
-  const { switchTask, pause, timerState, isActive: isTimerActive, isRunning } = useTimer();
+  const { switchTask, pause, resume, timerState, isActive: isTimerActive, isRunning, isPaused } = useTimer();
 
   const updateMutation = api.timeEntry.update.useMutation({
     onSuccess: () => {
@@ -280,9 +280,11 @@ export function TimeEntriesList({ data, isLoading }: TimeEntriesListProps) {
               onToggleBillable={handleToggleBillable}
               onStartTimer={handleStartTimer}
               onPauseTimer={pause}
+              onResumeTimer={resume}
               isTaskSaving={updateTaskMutation.isPending}
               isTimerActive={isTimerActive}
               isTimerRunning={isRunning}
+              isTimerPaused={isPaused}
               activeTaskId={timerState.task?.id ?? null}
             />
           ))}
@@ -312,9 +314,11 @@ export function TimeEntriesList({ data, isLoading }: TimeEntriesListProps) {
               onToggleBillable={handleToggleBillable}
               onStartTimer={handleStartTimer}
               onPauseTimer={pause}
+              onResumeTimer={resume}
               isTaskSaving={updateTaskMutation.isPending}
               isTimerActive={isTimerActive}
               isTimerRunning={isRunning}
+              isTimerPaused={isPaused}
               activeTaskId={timerState.task?.id ?? null}
             />
           ))}
@@ -379,9 +383,11 @@ interface TaskGroupProps {
   onToggleBillable: (taskId: string, isBillable: boolean) => void;
   onStartTimer: (task: { id: string; title: string; isBillable: boolean; project: { id: string; name: string; client: { id: string; name: string; color: string } } }) => void;
   onPauseTimer: () => void;
+  onResumeTimer: () => void;
   isTaskSaving: boolean;
   isTimerActive: boolean;
   isTimerRunning: boolean;
+  isTimerPaused: boolean;
   activeTaskId: string | null;
 }
 
@@ -405,15 +411,18 @@ function TaskGroup({
   onToggleBillable,
   onStartTimer,
   onPauseTimer,
+  onResumeTimer,
   isTaskSaving,
   isTimerActive,
   isTimerRunning,
+  isTimerPaused,
   activeTaskId,
 }: TaskGroupProps) {
   const client = group.task?.project?.client;
   const isEditingThisTask = editingTask?.id === group.task.id;
   const isActiveTask = activeTaskId === group.task.id;
   const isActiveAndRunning = isActiveTask && isTimerRunning;
+  const isActiveAndPaused = isActiveTask && isTimerPaused;
 
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggle}>
@@ -525,6 +534,8 @@ function TaskGroup({
                       e.stopPropagation();
                       if (isActiveAndRunning) {
                         onPauseTimer();
+                      } else if (isActiveAndPaused) {
+                        onResumeTimer();
                       } else {
                         onStartTimer(group.task);
                       }
@@ -540,9 +551,11 @@ function TaskGroup({
                 <TooltipContent>
                   {isActiveAndRunning
                     ? "Pause timer"
-                    : isTimerActive
-                      ? "Switch to this task"
-                      : "Start timer"}</TooltipContent>
+                    : isActiveAndPaused
+                      ? "Resume timer"
+                      : isTimerActive
+                        ? "Switch to this task"
+                        : "Start timer"}</TooltipContent>
               </Tooltip>
 
               {/* Edit task name */}
@@ -765,9 +778,11 @@ interface TimePeriodSectionProps {
   onToggleBillable: (taskId: string, isBillable: boolean) => void;
   onStartTimer: (task: { id: string; title: string; isBillable: boolean; project: { id: string; name: string; client: { id: string; name: string; color: string } } }) => void;
   onPauseTimer: () => void;
+  onResumeTimer: () => void;
   isTaskSaving: boolean;
   isTimerActive: boolean;
   isTimerRunning: boolean;
+  isTimerPaused: boolean;
   activeTaskId: string | null;
 }
 
@@ -793,9 +808,11 @@ function TimePeriodSection({
   onToggleBillable,
   onStartTimer,
   onPauseTimer,
+  onResumeTimer,
   isTaskSaving,
   isTimerActive,
   isTimerRunning,
+  isTimerPaused,
   activeTaskId,
 }: TimePeriodSectionProps) {
   // Group entries by task within this period
@@ -895,9 +912,11 @@ function TimePeriodSection({
               onToggleBillable={onToggleBillable}
               onStartTimer={onStartTimer}
               onPauseTimer={onPauseTimer}
+              onResumeTimer={onResumeTimer}
               isTaskSaving={isTaskSaving}
               isTimerActive={isTimerActive}
               isTimerRunning={isTimerRunning}
+              isTimerPaused={isTimerPaused}
               activeTaskId={activeTaskId}
             />
           ))}

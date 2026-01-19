@@ -50,11 +50,25 @@ export function useTimer() {
   // Keep track of previous state for rollbacks
   const previousStateRef = useRef<TimerState | null>(null);
 
+  // Track if we're in a switch operation (to suppress duplicate toasts)
+  const isSwitchingRef = useRef(false);
+
   // Track if we've done initial sync (prevent server data from overriding client state)
   const hasInitialSyncRef = useRef(false);
 
   // Local tick state for smooth display updates
   const [tickTime, setTickTime] = useState(0);
+
+  // Helper to calculate current time
+  const calculateCurrentTime = useCallback(() => {
+    if (!isRunning || !timerState.startTime) {
+      return displayTime;
+    }
+    const timeSinceStart = Math.floor(
+      (Date.now() - timerState.startTime) / 1000
+    );
+    return timerState.elapsed + timeSinceStart;
+  }, [isRunning, timerState.startTime, timerState.elapsed, displayTime]);
 
   // Tick effect for running timer
   useEffect(() => {
@@ -64,17 +78,31 @@ export function useTimer() {
     }
 
     // Initial sync
-    setTickTime(displayTime);
+    setTickTime(calculateCurrentTime());
 
     const interval = setInterval(() => {
-      const timeSinceStart = Math.floor(
-        (Date.now() - timerState.startTime!) / 1000
-      );
-      setTickTime(timerState.elapsed + timeSinceStart);
+      setTickTime(calculateCurrentTime());
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isRunning, timerState.startTime, timerState.elapsed, displayTime]);
+  }, [isRunning, timerState.startTime, timerState.elapsed, displayTime, calculateCurrentTime]);
+
+  // Immediately update timer when tab becomes visible (no 1-second delay)
+  useEffect(() => {
+    if (!isRunning || !timerState.startTime) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        // Immediately recalculate and update the display time
+        setTickTime(calculateCurrentTime());
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [isRunning, timerState.startTime, calculateCurrentTime]);
 
   // Fetch current active timer from server (only on mount, no refetching)
   const { data: serverTimer, isLoading: isLoadingTimer } =
@@ -134,15 +162,22 @@ export function useTimer() {
     }
   }, [serverTimer, isLoadingTimer, syncFromServer]);
 
-  // tRPC mutations - no invalidation needed, Jotai is source of truth
+  // tRPC mutations
   const startMutation = api.activeTimer.start.useMutation({
     onSuccess: (data) => {
       confirmAction();
-      toast.success("Timer started", {
-        description: `Tracking time for "${data.task.title}"`,
-      });
+      // Invalidate to keep server query cache in sync with new timer
+      void utils.activeTimer.getCurrent.invalidate();
+      // Don't show toast if this is part of a task switch (switch shows its own toast)
+      if (!isSwitchingRef.current) {
+        toast.success("Timer started", {
+          description: `Tracking time for "${data.task.title}"`,
+        });
+      }
+      isSwitchingRef.current = false;
     },
     onError: (error) => {
+      isSwitchingRef.current = false;
       if (previousStateRef.current) {
         rollbackTimer(previousStateRef.current);
       }
@@ -155,6 +190,7 @@ export function useTimer() {
   const pauseMutation = api.activeTimer.pause.useMutation({
     onSuccess: () => {
       confirmAction();
+      void utils.activeTimer.getCurrent.invalidate();
       toast.info("Timer paused", {
         description: `Paused at ${formatTimer(tickTime)}`,
       });
@@ -172,6 +208,7 @@ export function useTimer() {
   const resumeMutation = api.activeTimer.resume.useMutation({
     onSuccess: () => {
       confirmAction();
+      void utils.activeTimer.getCurrent.invalidate();
       toast.success("Timer resumed", {
         description: "Continue tracking time",
       });
@@ -193,6 +230,7 @@ export function useTimer() {
         return;
       }
       // State already reset optimistically, just show toast and invalidate
+      void utils.activeTimer.getCurrent.invalidate();
       void utils.timeEntry.getRecent.invalidate();
       void utils.timeEntry.getRecentGroupedByTask.invalidate();
       void utils.timeEntry.getFiltered.invalidate();
@@ -218,6 +256,8 @@ export function useTimer() {
       if (!data) {
         return;
       }
+      // Invalidate server query cache
+      void utils.activeTimer.getCurrent.invalidate();
       // State already reset optimistically, show toast with undo option
       toast.warning("Timer discarded", {
         description: "Time was not saved",
@@ -324,6 +364,11 @@ export function useTimer() {
               description: `${formatTimer(data.duration)} saved, now tracking "${newTask.title}"`,
             });
           }
+          // Start the new timer only on success
+          // Mark that we're switching so startMutation.onSuccess doesn't show duplicate toast
+          isSwitchingRef.current = true;
+          startTimer(newTask);
+          startMutation.mutate({ taskId: newTask.id });
         },
         onError: (error) => {
           // Restore previous state on error
@@ -333,12 +378,7 @@ export function useTimer() {
           toast.error("Failed to switch tasks", {
             description: error.message,
           });
-          return; // Don't start new timer if stop failed
-        },
-        onSettled: () => {
-          // Start the new timer regardless of stop result display
-          startTimer(newTask);
-          startMutation.mutate({ taskId: newTask.id });
+          // Don't start new timer if stop failed
         },
       });
     },

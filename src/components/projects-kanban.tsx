@@ -114,7 +114,7 @@ export function ProjectsKanban({ projectId, onAddTask, onEditTask }: ProjectsKan
         {KANBAN_COLUMNS.map((col) => (
           <div
             key={col.id}
-            className="flex flex-col rounded-lg border bg-muted/30 min-w-[280px] w-[280px] h-[400px] animate-pulse"
+            className="flex flex-col rounded-lg border bg-muted/30 min-w-[200px] flex-1 h-[400px] animate-pulse"
           />
         ))}
       </div>
@@ -127,7 +127,7 @@ export function ProjectsKanban({ projectId, onAddTask, onEditTask }: ProjectsKan
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 w-full overflow-x-auto pb-4">
+      <div className="flex gap-4 overflow-x-auto pb-4">
         {KANBAN_COLUMNS.map((col) => (
           <KanbanColumn
             key={col.id}

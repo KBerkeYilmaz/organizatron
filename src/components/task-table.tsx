@@ -5,6 +5,7 @@ import {
   ArrowUpDown,
   DollarSign,
   MoreHorizontal,
+  Pause,
   Pencil,
   Play,
   Trash2,
@@ -109,7 +110,7 @@ export function TaskTable({
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
   const utils = api.useUtils();
-  const { switchTask } = useTimer();
+  const { switchTask, pause, resume, timerState, isActive, isRunning, isPaused } = useTimer();
 
   const deleteMutation = api.task.delete.useMutation({
     onSuccess: () => {
@@ -173,24 +174,55 @@ export function TaskTable({
     }
   };
 
-  const handleStartTimer = (task: Task) => {
-    const timerTask: TimerTask = {
-      id: task.id,
-      title: task.title,
-      project: {
-        id: task.project.id,
-        name: task.project.name,
-        client: {
-          id: task.project.client.id,
-          name: task.project.client.name,
-          color: task.project.client.color,
+  const handleTimerAction = (task: Task) => {
+    const isThisTask = timerState.task?.id === task.id;
+    const isThisTaskRunning = isThisTask && isRunning;
+    const isThisTaskPaused = isThisTask && isPaused;
+
+    if (isThisTaskRunning) {
+      // This task is running → pause it
+      pause();
+    } else if (isThisTaskPaused) {
+      // This task is paused → resume it
+      resume();
+    } else {
+      // Either no timer or different task → switch/start
+      const timerTask: TimerTask = {
+        id: task.id,
+        title: task.title,
+        project: {
+          id: task.project.id,
+          name: task.project.name,
+          client: {
+            id: task.project.client.id,
+            name: task.project.client.name,
+            color: task.project.client.color,
+          },
         },
-      },
-      isBillable: task.isBillable,
-      hourlyRate: task.hourlyRate,
-      currency: task.currency,
-    };
-    switchTask(timerTask);
+        isBillable: task.isBillable,
+        hourlyRate: task.hourlyRate,
+        currency: task.currency,
+      };
+      switchTask(timerTask);
+    }
+  };
+
+  const getTimerActionLabel = (task: Task) => {
+    const isThisTask = timerState.task?.id === task.id;
+    const isThisTaskRunning = isThisTask && isRunning;
+    const isThisTaskPaused = isThisTask && isPaused;
+
+    if (isThisTaskRunning) return "Pause Timer";
+    if (isThisTaskPaused) return "Resume Timer";
+    if (isActive) return "Switch to Task";
+    return "Start Timer";
+  };
+
+  const getTimerIcon = (task: Task) => {
+    const isThisTask = timerState.task?.id === task.id;
+    const isThisTaskRunning = isThisTask && isRunning;
+
+    return isThisTaskRunning ? Pause : Play;
   };
 
   const handleDelete = (task: Task) => {
@@ -447,12 +479,15 @@ export function TaskTable({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      {task.status !== "completed" && (
-                        <DropdownMenuItem onClick={() => handleStartTimer(task)}>
-                          <Play className="mr-2 h-4 w-4" />
-                          Start Timer
-                        </DropdownMenuItem>
-                      )}
+                      {task.status !== "completed" && (() => {
+                        const TimerIcon = getTimerIcon(task);
+                        return (
+                          <DropdownMenuItem onClick={() => handleTimerAction(task)}>
+                            <TimerIcon className="mr-2 h-4 w-4" />
+                            {getTimerActionLabel(task)}
+                          </DropdownMenuItem>
+                        );
+                      })()}
                       <DropdownMenuItem onClick={() => onEdit(task)}>
                         <Pencil className="mr-2 h-4 w-4" />
                         Edit
