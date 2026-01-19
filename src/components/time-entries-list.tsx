@@ -8,6 +8,7 @@ import {
   DollarSign,
   Loader2,
   Pencil,
+  Play,
   Trash2,
   X,
   Check,
@@ -23,6 +24,12 @@ import {
   CollapsibleTrigger,
 } from "~/components/ui/collapsible";
 import { Input } from "~/components/ui/input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
+import { useTimer } from "~/hooks/use-timer";
 import { formatDuration, formatRelativeDate } from "~/lib/format";
 import { cn } from "~/lib/utils";
 import { api, type RouterOutputs } from "~/trpc/react";
@@ -48,8 +55,10 @@ export function TimeEntriesList({ data, isLoading }: TimeEntriesListProps) {
     new Set()
   );
   const [editingEntry, setEditingEntry] = useState<EditingEntry | null>(null);
+  const [editingTask, setEditingTask] = useState<EditingTask | null>(null);
 
   const utils = api.useUtils();
+  const { start: startTimer, timerState, isActive: isTimerActive } = useTimer();
 
   const updateMutation = api.timeEntry.update.useMutation({
     onSuccess: () => {
@@ -82,6 +91,21 @@ export function TimeEntriesList({ data, isLoading }: TimeEntriesListProps) {
     },
   });
 
+  const updateTaskMutation = api.task.update.useMutation({
+    onSuccess: () => {
+      toast.success("Task updated");
+      void utils.task.getAll.invalidate();
+      void utils.timeEntry.getFiltered.invalidate();
+      void utils.timeEntry.getRecentGroupedByTask.invalidate();
+      setEditingTask(null);
+    },
+    onError: (error) => {
+      toast.error("Failed to update task", {
+        description: error.message,
+      });
+    },
+  });
+
   const toggleTask = (taskId: string) => {
     setExpandedTasks((prev) => {
       const next = new Set(prev);
@@ -103,6 +127,51 @@ export function TimeEntriesList({ data, isLoading }: TimeEntriesListProps) {
         next.add(periodKey);
       }
       return next;
+    });
+  };
+
+  const startEditingTask = (task: { id: string; title: string }) => {
+    setEditingTask({ id: task.id, title: task.title });
+  };
+
+  const handleSaveTask = () => {
+    if (!editingTask) return;
+    updateTaskMutation.mutate({
+      id: editingTask.id,
+      title: editingTask.title,
+    });
+  };
+
+  const handleToggleBillable = (taskId: string, isBillable: boolean) => {
+    updateTaskMutation.mutate({
+      id: taskId,
+      isBillable: !isBillable,
+    });
+  };
+
+  const handleStartTimer = (task: {
+    id: string;
+    title: string;
+    isBillable: boolean;
+    project: {
+      id: string;
+      name: string;
+      client: { id: string; name: string; color: string };
+    };
+  }) => {
+    startTimer({
+      id: task.id,
+      title: task.title,
+      isBillable: task.isBillable,
+      project: {
+        id: task.project.id,
+        name: task.project.name,
+        client: {
+          id: task.project.client.id,
+          name: task.project.client.name,
+          color: task.project.client.color,
+        },
+      },
     });
   };
 
@@ -200,6 +269,16 @@ export function TimeEntriesList({ data, isLoading }: TimeEntriesListProps) {
               onEditChange={setEditingEntry}
               isSaving={updateMutation.isPending}
               isDeleting={deleteMutation.isPending}
+              editingTask={editingTask}
+              onStartEditingTask={startEditingTask}
+              onSaveTask={handleSaveTask}
+              onCancelEditTask={() => setEditingTask(null)}
+              onEditTaskChange={setEditingTask}
+              onToggleBillable={handleToggleBillable}
+              onStartTimer={handleStartTimer}
+              isTaskSaving={updateTaskMutation.isPending}
+              isTimerActive={isTimerActive}
+              activeTaskId={timerState.task?.id ?? null}
             />
           ))}
         </div>
@@ -220,6 +299,16 @@ export function TimeEntriesList({ data, isLoading }: TimeEntriesListProps) {
               onEditChange={setEditingEntry}
               isSaving={updateMutation.isPending}
               isDeleting={deleteMutation.isPending}
+              editingTask={editingTask}
+              onStartEditingTask={startEditingTask}
+              onSaveTask={handleSaveTask}
+              onCancelEditTask={() => setEditingTask(null)}
+              onEditTaskChange={setEditingTask}
+              onToggleBillable={handleToggleBillable}
+              onStartTimer={handleStartTimer}
+              isTaskSaving={updateTaskMutation.isPending}
+              isTimerActive={isTimerActive}
+              activeTaskId={timerState.task?.id ?? null}
             />
           ))}
         </div>
@@ -254,6 +343,11 @@ export function TimeEntriesList({ data, isLoading }: TimeEntriesListProps) {
   );
 }
 
+interface EditingTask {
+  id: string;
+  title: string;
+}
+
 interface TaskGroupProps {
   group: TimeEntryGroup | {
     task: TimePeriodGroup["entries"][0]["task"];
@@ -270,6 +364,16 @@ interface TaskGroupProps {
   onEditChange: (entry: EditingEntry) => void;
   isSaving: boolean;
   isDeleting: boolean;
+  editingTask: EditingTask | null;
+  onStartEditingTask: (task: { id: string; title: string }) => void;
+  onSaveTask: () => void;
+  onCancelEditTask: () => void;
+  onEditTaskChange: (task: EditingTask) => void;
+  onToggleBillable: (taskId: string, isBillable: boolean) => void;
+  onStartTimer: (task: { id: string; title: string; isBillable: boolean; project: { id: string; name: string; client: { id: string; name: string; color: string } } }) => void;
+  isTaskSaving: boolean;
+  isTimerActive: boolean;
+  activeTaskId: string | null;
 }
 
 function TaskGroup({
@@ -284,20 +388,33 @@ function TaskGroup({
   onEditChange,
   isSaving,
   isDeleting,
+  editingTask,
+  onStartEditingTask,
+  onSaveTask,
+  onCancelEditTask,
+  onEditTaskChange,
+  onToggleBillable,
+  onStartTimer,
+  isTaskSaving,
+  isTimerActive,
+  activeTaskId,
 }: TaskGroupProps) {
   const client = group.task?.project?.client;
+  const isEditingThisTask = editingTask?.id === group.task.id;
+  const isActiveTask = activeTaskId === group.task.id;
 
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggle}>
-      <CollapsibleTrigger asChild>
-        <button
-          className={cn(
-            "flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left transition-colors",
-            "hover:bg-muted/50",
-            isExpanded && "bg-muted/50 border-b-0 rounded-b-none"
-          )}
-        >
-          <div className="flex items-center gap-3">
+      <div
+        className={cn(
+          "group/taskrow flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left transition-colors",
+          "hover:bg-muted/50",
+          isExpanded && "bg-muted/50 border-b-0 rounded-b-none",
+          isActiveTask && "ring-2 ring-primary/50"
+        )}
+      >
+        <CollapsibleTrigger asChild>
+          <button className="flex flex-1 items-center gap-3">
             {isExpanded ? (
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             ) : (
@@ -305,32 +422,151 @@ function TaskGroup({
             )}
             {client && (
               <span
-                className="h-3 w-3 rounded-full"
+                className="h-3 w-3 rounded-full shrink-0"
                 style={{ backgroundColor: client.color }}
               />
             )}
-            <div>
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-medium">{group.task.title}</p>
-                {group.task.isBillable && (
-                  <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {client?.name} · {group.task.project.name} ·{" "}
-                {group.entries.length} session
-                {group.entries.length !== 1 ? "s" : ""}
+            <div className="min-w-0 flex-1">
+              {isEditingThisTask ? (
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <Input
+                    value={editingTask.title}
+                    onChange={(e) =>
+                      onEditTaskChange({ ...editingTask, title: e.target.value })
+                    }
+                    className="h-7 text-sm"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        onSaveTask();
+                      } else if (e.key === "Escape") {
+                        onCancelEditTask();
+                      }
+                    }}
+                  />
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 shrink-0"
+                    onClick={onCancelEditTask}
+                    disabled={isTaskSaving}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    className="h-7 w-7 shrink-0"
+                    onClick={onSaveTask}
+                    disabled={isTaskSaving}
+                  >
+                    {isTaskSaving ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Check className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium truncate">{group.task.title}</p>
+                    {group.task.isBillable && (
+                      <DollarSign className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {client?.name} · {group.task.project.name} ·{" "}
+                    {group.entries.length} session
+                    {group.entries.length !== 1 ? "s" : ""}
+                  </p>
+                </>
+              )}
+            </div>
+          </button>
+        </CollapsibleTrigger>
+
+        {/* Hover actions */}
+        {!isEditingThisTask && (
+          <div className="flex items-center gap-1 ml-2">
+            {/* Duration */}
+            <div className="text-right mr-2">
+              <p className="text-sm font-semibold tabular-nums">
+                {formatDuration(group.totalDuration)}
               </p>
+              <p className="text-xs text-muted-foreground">total</p>
+            </div>
+
+            {/* Action buttons - visible on hover */}
+            <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover/taskrow:opacity-100">
+              {/* Play/Resume button */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant={isActiveTask ? "default" : "ghost"}
+                    className={cn("h-8 w-8", isActiveTask && "bg-primary")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isActiveTask) {
+                        onStartTimer(group.task);
+                      }
+                    }}
+                    disabled={isActiveTask}
+                  >
+                    <Play className={cn("h-4 w-4", isActiveTask && "text-primary-foreground")} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {isActiveTask ? "Timer running" : "Start timer"}
+                </TooltipContent>
+              </Tooltip>
+
+              {/* Edit task name */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onStartEditingTask({ id: group.task.id, title: group.task.title });
+                    }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Edit task name</TooltipContent>
+              </Tooltip>
+
+              {/* Toggle billable */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className={cn(
+                      "h-8 w-8",
+                      group.task.isBillable && "text-emerald-600 hover:text-emerald-700"
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleBillable(group.task.id, group.task.isBillable);
+                    }}
+                    disabled={isTaskSaving}
+                  >
+                    <DollarSign className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {group.task.isBillable ? "Mark as non-billable" : "Mark as billable"}
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
-          <div className="text-right">
-            <p className="text-sm font-semibold tabular-nums">
-              {formatDuration(group.totalDuration)}
-            </p>
-            <p className="text-xs text-muted-foreground">total</p>
-          </div>
-        </button>
-      </CollapsibleTrigger>
+        )}
+      </div>
       <CollapsibleContent>
         <div className="border border-t-0 rounded-b-lg bg-background">
           <div className="divide-y">
@@ -498,6 +734,16 @@ interface TimePeriodSectionProps {
   onEditChange: (entry: EditingEntry) => void;
   isSaving: boolean;
   isDeleting: boolean;
+  editingTask: EditingTask | null;
+  onStartEditingTask: (task: { id: string; title: string }) => void;
+  onSaveTask: () => void;
+  onCancelEditTask: () => void;
+  onEditTaskChange: (task: EditingTask) => void;
+  onToggleBillable: (taskId: string, isBillable: boolean) => void;
+  onStartTimer: (task: { id: string; title: string; isBillable: boolean; project: { id: string; name: string; client: { id: string; name: string; color: string } } }) => void;
+  isTaskSaving: boolean;
+  isTimerActive: boolean;
+  activeTaskId: string | null;
 }
 
 function TimePeriodSection({
@@ -514,6 +760,16 @@ function TimePeriodSection({
   onEditChange,
   isSaving,
   isDeleting,
+  editingTask,
+  onStartEditingTask,
+  onSaveTask,
+  onCancelEditTask,
+  onEditTaskChange,
+  onToggleBillable,
+  onStartTimer,
+  isTaskSaving,
+  isTimerActive,
+  activeTaskId,
 }: TimePeriodSectionProps) {
   // Group entries by task within this period
   const taskGroups = periodGroup.entries.reduce(
@@ -596,6 +852,16 @@ function TimePeriodSection({
               onEditChange={onEditChange}
               isSaving={isSaving}
               isDeleting={isDeleting}
+              editingTask={editingTask}
+              onStartEditingTask={onStartEditingTask}
+              onSaveTask={onSaveTask}
+              onCancelEditTask={onCancelEditTask}
+              onEditTaskChange={onEditTaskChange}
+              onToggleBillable={onToggleBillable}
+              onStartTimer={onStartTimer}
+              isTaskSaving={isTaskSaving}
+              isTimerActive={isTimerActive}
+              activeTaskId={activeTaskId}
             />
           ))}
         </div>
