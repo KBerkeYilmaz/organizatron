@@ -7,6 +7,7 @@ import {
   Clock,
   DollarSign,
   Loader2,
+  Pause,
   Pencil,
   Play,
   Trash2,
@@ -58,7 +59,7 @@ export function TimeEntriesList({ data, isLoading }: TimeEntriesListProps) {
   const [editingTask, setEditingTask] = useState<EditingTask | null>(null);
 
   const utils = api.useUtils();
-  const { switchTask, timerState, isActive: isTimerActive } = useTimer();
+  const { switchTask, pause, timerState, isActive: isTimerActive, isRunning } = useTimer();
 
   const updateMutation = api.timeEntry.update.useMutation({
     onSuccess: () => {
@@ -278,8 +279,10 @@ export function TimeEntriesList({ data, isLoading }: TimeEntriesListProps) {
               onEditTaskChange={setEditingTask}
               onToggleBillable={handleToggleBillable}
               onStartTimer={handleStartTimer}
+              onPauseTimer={pause}
               isTaskSaving={updateTaskMutation.isPending}
               isTimerActive={isTimerActive}
+              isTimerRunning={isRunning}
               activeTaskId={timerState.task?.id ?? null}
             />
           ))}
@@ -308,8 +311,10 @@ export function TimeEntriesList({ data, isLoading }: TimeEntriesListProps) {
               onEditTaskChange={setEditingTask}
               onToggleBillable={handleToggleBillable}
               onStartTimer={handleStartTimer}
+              onPauseTimer={pause}
               isTaskSaving={updateTaskMutation.isPending}
               isTimerActive={isTimerActive}
+              isTimerRunning={isRunning}
               activeTaskId={timerState.task?.id ?? null}
             />
           ))}
@@ -373,8 +378,10 @@ interface TaskGroupProps {
   onEditTaskChange: (task: EditingTask) => void;
   onToggleBillable: (taskId: string, isBillable: boolean) => void;
   onStartTimer: (task: { id: string; title: string; isBillable: boolean; project: { id: string; name: string; client: { id: string; name: string; color: string } } }) => void;
+  onPauseTimer: () => void;
   isTaskSaving: boolean;
   isTimerActive: boolean;
+  isTimerRunning: boolean;
   activeTaskId: string | null;
 }
 
@@ -397,13 +404,16 @@ function TaskGroup({
   onEditTaskChange,
   onToggleBillable,
   onStartTimer,
+  onPauseTimer,
   isTaskSaving,
   isTimerActive,
+  isTimerRunning,
   activeTaskId,
 }: TaskGroupProps) {
   const client = group.task?.project?.client;
   const isEditingThisTask = editingTask?.id === group.task.id;
   const isActiveTask = activeTaskId === group.task.id;
+  const isActiveAndRunning = isActiveTask && isTimerRunning;
 
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggle}>
@@ -504,24 +514,35 @@ function TaskGroup({
 
             {/* Action buttons - visible on hover */}
             <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover/taskrow:opacity-100">
-              {/* Play/Resume button */}
+              {/* Play/Pause button */}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     size="icon"
-                    variant={isActiveTask ? "default" : "ghost"}
-                    className={cn("h-8 w-8", isActiveTask && "bg-primary")}
+                    variant={isActiveAndRunning ? "default" : "ghost"}
+                    className={cn("h-8 w-8", isActiveAndRunning && "bg-primary")}
                     onClick={(e) => {
                       e.stopPropagation();
-                      onStartTimer(group.task);
+                      if (isActiveAndRunning) {
+                        onPauseTimer();
+                      } else {
+                        onStartTimer(group.task);
+                      }
                     }}
                   >
-                    <Play className={cn("h-4 w-4", isActiveTask && "text-primary-foreground")} />
+                    {isActiveAndRunning ? (
+                      <Pause className="h-4 w-4 text-primary-foreground" />
+                    ) : (
+                      <Play className="h-4 w-4" />
+                    )}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {isActiveTask ? "Switch to this task" : "Start timer"}
-                </TooltipContent>
+                  {isActiveAndRunning
+                    ? "Pause timer"
+                    : isTimerActive
+                      ? "Switch to this task"
+                      : "Start timer"}</TooltipContent>
               </Tooltip>
 
               {/* Edit task name */}
@@ -743,8 +764,10 @@ interface TimePeriodSectionProps {
   onEditTaskChange: (task: EditingTask) => void;
   onToggleBillable: (taskId: string, isBillable: boolean) => void;
   onStartTimer: (task: { id: string; title: string; isBillable: boolean; project: { id: string; name: string; client: { id: string; name: string; color: string } } }) => void;
+  onPauseTimer: () => void;
   isTaskSaving: boolean;
   isTimerActive: boolean;
+  isTimerRunning: boolean;
   activeTaskId: string | null;
 }
 
@@ -769,8 +792,10 @@ function TimePeriodSection({
   onEditTaskChange,
   onToggleBillable,
   onStartTimer,
+  onPauseTimer,
   isTaskSaving,
   isTimerActive,
+  isTimerRunning,
   activeTaskId,
 }: TimePeriodSectionProps) {
   // Group entries by task within this period
@@ -861,8 +886,10 @@ function TimePeriodSection({
               onEditTaskChange={onEditTaskChange}
               onToggleBillable={onToggleBillable}
               onStartTimer={onStartTimer}
+              onPauseTimer={onPauseTimer}
               isTaskSaving={isTaskSaving}
               isTimerActive={isTimerActive}
+              isTimerRunning={isTimerRunning}
               activeTaskId={activeTaskId}
             />
           ))}
