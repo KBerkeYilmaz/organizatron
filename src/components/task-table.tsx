@@ -109,7 +109,7 @@ export function TaskTable({
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
   const utils = api.useUtils();
-  const { start } = useTimer();
+  const { switchTask } = useTimer();
 
   const deleteMutation = api.task.delete.useMutation({
     onSuccess: () => {
@@ -190,7 +190,7 @@ export function TaskTable({
       hourlyRate: task.hourlyRate,
       currency: task.currency,
     };
-    start(timerTask);
+    switchTask(timerTask);
   };
 
   const handleDelete = (task: Task) => {

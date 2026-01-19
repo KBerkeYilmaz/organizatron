@@ -71,7 +71,7 @@ const priorityConfig: Record<Priority, { label: string; className: string }> = {
 };
 
 export function TaskKanbanCard({ task, isDragging, onEdit }: TaskKanbanCardProps) {
-  const { start } = useTimer();
+  const { switchTask } = useTimer();
   const utils = api.useUtils();
   const priority = priorityConfig[task.priority];
 
@@ -117,7 +117,7 @@ export function TaskKanbanCard({ task, isDragging, onEdit }: TaskKanbanCardProps
       hourlyRate: task.hourlyRate,
       currency: task.currency,
     };
-    start(timerTask);
+    switchTask(timerTask);
   };
 
   const handleDelete = (e: React.MouseEvent) => {

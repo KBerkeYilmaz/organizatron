@@ -127,7 +127,7 @@ export function ProjectsKanban({ projectId, onAddTask, onEditTask }: ProjectsKan
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      <div className="flex gap-4 w-full overflow-x-auto pb-4">
         {KANBAN_COLUMNS.map((col) => (
           <KanbanColumn
             key={col.id}

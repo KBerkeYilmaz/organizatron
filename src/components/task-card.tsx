@@ -82,7 +82,7 @@ export function TaskCard({ task, compact = false, onEdit }: TaskCardProps) {
   const project = task.project;
   const client = task.project.client;
   const priority = priorityConfig[task.priority];
-  const { start } = useTimer();
+  const { switchTask } = useTimer();
   const utils = api.useUtils();
 
   const deleteMutation = api.task.delete.useMutation({
@@ -112,7 +112,7 @@ export function TaskCard({ task, compact = false, onEdit }: TaskCardProps) {
       hourlyRate: task.hourlyRate,
       currency: task.currency,
     };
-    start(timerTask);
+    switchTask(timerTask);
   };
 
   const handleDelete = () => {

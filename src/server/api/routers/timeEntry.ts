@@ -236,15 +236,21 @@ export const timeEntryRouter = createTRPCRouter({
       const groupedByTask = entries.reduce(
         (acc, entry) => {
           const taskId = entry.taskId;
+          const entryTime = new Date(entry.startTime).getTime();
           if (!acc[taskId]) {
             acc[taskId] = {
               task: entry.task,
               entries: [],
               totalDuration: 0,
+              latestEntryTime: entryTime,
             };
           }
           acc[taskId]!.entries.push(entry);
           acc[taskId]!.totalDuration += entry.duration;
+          // Track the most recent entry time
+          if (entryTime > acc[taskId]!.latestEntryTime) {
+            acc[taskId]!.latestEntryTime = entryTime;
+          }
           return acc;
         },
         {} as Record<
@@ -253,6 +259,7 @@ export const timeEntryRouter = createTRPCRouter({
             task: (typeof entries)[0]["task"];
             entries: typeof entries;
             totalDuration: number;
+            latestEntryTime: number;
           }
         >
       );
@@ -358,7 +365,8 @@ export const timeEntryRouter = createTRPCRouter({
       const billableDuration = billableEntries.reduce((sum, e) => sum + e.duration, 0);
 
       return {
-        groups: Object.values(groupedByTask).sort((a, b) => b.totalDuration - a.totalDuration),
+        // Sort by most recent entry time (descending)
+        groups: Object.values(groupedByTask).sort((a, b) => b.latestEntryTime - a.latestEntryTime),
         timePeriodGroups,
         timeGrouping,
         summary: {

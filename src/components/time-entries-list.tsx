@@ -802,15 +802,21 @@ function TimePeriodSection({
   const taskGroups = periodGroup.entries.reduce(
     (acc, entry) => {
       const taskId = entry.taskId;
+      const entryTime = new Date(entry.startTime).getTime();
       if (!acc[taskId]) {
         acc[taskId] = {
           task: entry.task,
           entries: [],
           totalDuration: 0,
+          latestEntryTime: entryTime,
         };
       }
       acc[taskId]!.entries.push(entry);
       acc[taskId]!.totalDuration += entry.duration;
+      // Track the most recent entry time
+      if (entryTime > acc[taskId]!.latestEntryTime) {
+        acc[taskId]!.latestEntryTime = entryTime;
+      }
       return acc;
     },
     {} as Record<
@@ -819,12 +825,14 @@ function TimePeriodSection({
         task: TimePeriodGroup["entries"][0]["task"];
         entries: TimePeriodGroup["entries"];
         totalDuration: number;
+        latestEntryTime: number;
       }
     >
   );
 
+  // Sort by most recent entry time (descending)
   const sortedTaskGroups = Object.values(taskGroups).sort(
-    (a, b) => b.totalDuration - a.totalDuration
+    (a, b) => b.latestEntryTime - a.latestEntryTime
   );
 
   return (
