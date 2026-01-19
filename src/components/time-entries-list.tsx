@@ -58,7 +58,7 @@ export function TimeEntriesList({ data, isLoading }: TimeEntriesListProps) {
   const [editingTask, setEditingTask] = useState<EditingTask | null>(null);
 
   const utils = api.useUtils();
-  const { start: startTimer, timerState, isActive: isTimerActive } = useTimer();
+  const { switchTask, timerState, isActive: isTimerActive } = useTimer();
 
   const updateMutation = api.timeEntry.update.useMutation({
     onSuccess: () => {
@@ -159,7 +159,9 @@ export function TimeEntriesList({ data, isLoading }: TimeEntriesListProps) {
       client: { id: string; name: string; color: string };
     };
   }) => {
-    startTimer({
+    // Use switchTask to smoothly transition between tasks
+    // If a timer is running, it will stop and save it before starting the new one
+    switchTask({
       id: task.id,
       title: task.title,
       isBillable: task.isBillable,
@@ -407,22 +409,25 @@ function TaskGroup({
     <Collapsible open={isExpanded} onOpenChange={onToggle}>
       <div
         className={cn(
-          "group/taskrow flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left transition-colors",
+          "group/taskrow flex w-full items-center rounded-lg border px-4 py-3 text-left transition-colors",
           "hover:bg-muted/50",
           isExpanded && "bg-muted/50 border-b-0 rounded-b-none",
           isActiveTask && "ring-2 ring-primary/50"
         )}
       >
+        {/* Left section: chevron + color dot + task info */}
         <CollapsibleTrigger asChild>
-          <button className="flex flex-1 items-center gap-3">
-            {isExpanded ? (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            )}
+          <button className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="shrink-0">
+              {isExpanded ? (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              )}
+            </div>
             {client && (
               <span
-                className="h-3 w-3 rounded-full shrink-0"
+                className="h-3 w-3 shrink-0 rounded-full"
                 style={{ backgroundColor: client.color }}
               />
             )}
@@ -468,33 +473,33 @@ function TaskGroup({
                   </Button>
                 </div>
               ) : (
-                <>
+                <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-3">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium truncate">{group.task.title}</p>
+                    <p className="truncate text-sm font-medium">{group.task.title}</p>
                     {group.task.isBillable && (
-                      <DollarSign className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                      <DollarSign className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground truncate">
+                  <p className="truncate text-xs text-muted-foreground">
                     {client?.name} · {group.task.project.name} ·{" "}
                     {group.entries.length} session
                     {group.entries.length !== 1 ? "s" : ""}
                   </p>
-                </>
+                </div>
               )}
             </div>
           </button>
         </CollapsibleTrigger>
 
-        {/* Hover actions */}
+        {/* Right section: duration + actions */}
         {!isEditingThisTask && (
-          <div className="flex items-center gap-1 ml-2">
-            {/* Duration */}
-            <div className="text-right mr-2">
-              <p className="text-sm font-semibold tabular-nums">
+          <div className="ml-4 flex shrink-0 items-center gap-2">
+            {/* Duration - single line */}
+            <div className="flex items-center gap-1.5 text-right">
+              <span className="text-sm font-semibold tabular-nums">
                 {formatDuration(group.totalDuration)}
-              </p>
-              <p className="text-xs text-muted-foreground">total</p>
+              </span>
+              <span className="text-xs text-muted-foreground">total</span>
             </div>
 
             {/* Action buttons - visible on hover */}
@@ -508,17 +513,14 @@ function TaskGroup({
                     className={cn("h-8 w-8", isActiveTask && "bg-primary")}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!isActiveTask) {
-                        onStartTimer(group.task);
-                      }
+                      onStartTimer(group.task);
                     }}
-                    disabled={isActiveTask}
                   >
                     <Play className={cn("h-4 w-4", isActiveTask && "text-primary-foreground")} />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {isActiveTask ? "Timer running" : "Start timer"}
+                  {isActiveTask ? "Switch to this task" : "Start timer"}
                 </TooltipContent>
               </Tooltip>
 
