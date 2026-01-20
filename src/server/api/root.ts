@@ -5,6 +5,7 @@ import {
 } from "~/server/api/trpc";
 import { activeTimerRouter } from "./routers/activeTimer";
 import { clientRouter } from "./routers/client";
+import { googleCalendarRouter } from "./routers/googleCalendar";
 import { projectRouter } from "./routers/project";
 import { statsRouter } from "./routers/stats";
 import { taskRouter } from "./routers/task";
@@ -19,6 +20,7 @@ export const appRouter = createTRPCRouter({
   health: publicProcedure.query(() => ({ status: "ok" })),
   activeTimer: activeTimerRouter,
   clients: clientRouter,
+  googleCalendar: googleCalendarRouter,
   project: projectRouter,
   stats: statsRouter,
   task: taskRouter,

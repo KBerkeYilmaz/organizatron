@@ -38,6 +38,7 @@ const mockTask = {
   hourlyRate: null,
   currency: "USD",
   billingStatus: "pending" as const,
+  googleEventId: null,
   project: mockProject,
 };
 
