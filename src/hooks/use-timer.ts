@@ -1,15 +1,11 @@
 "use client";
 
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
 import {
   confirmActionAtom,
-  displayTimeAtom,
-  isTimerActiveAtom,
-  isTimerPausedAtom,
-  isTimerRunningAtom,
   pauseTimerAtom,
   resumeTimerAtom,
   rollbackTimerAtom,
@@ -29,12 +25,13 @@ import { hasPersistedTimerState } from "~/lib/timer-storage";
 export function useTimer() {
   const utils = api.useUtils();
 
-  // Jotai state
+  // Jotai state - only subscribe to timerStateAtom, derive everything else
   const [timerState] = useAtom(timerStateAtom);
-  const displayTime = useAtomValue(displayTimeAtom);
-  const isActive = useAtomValue(isTimerActiveAtom);
-  const isRunning = useAtomValue(isTimerRunningAtom);
-  const isPaused = useAtomValue(isTimerPausedAtom);
+
+  // Derive status booleans from timerState (no extra subscriptions)
+  const isActive = timerState.status !== "idle";
+  const isRunning = timerState.status === "running";
+  const isPaused = timerState.status === "paused";
 
   // Action setters
   const startTimer = useSetAtom(startTimerAtom);
@@ -62,18 +59,18 @@ export function useTimer() {
   // Helper to calculate current time
   const calculateCurrentTime = useCallback(() => {
     if (!isRunning || !timerState.startTime) {
-      return displayTime;
+      return timerState.elapsed;
     }
     const timeSinceStart = Math.floor(
       (Date.now() - timerState.startTime) / 1000
     );
     return timerState.elapsed + timeSinceStart;
-  }, [isRunning, timerState.startTime, timerState.elapsed, displayTime]);
+  }, [isRunning, timerState.startTime, timerState.elapsed]);
 
   // Tick effect for running timer
   useEffect(() => {
     if (!isRunning || !timerState.startTime) {
-      setTickTime(displayTime);
+      setTickTime(timerState.elapsed);
       return;
     }
 
@@ -85,7 +82,7 @@ export function useTimer() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isRunning, timerState.startTime, timerState.elapsed, displayTime, calculateCurrentTime]);
+  }, [isRunning, timerState.startTime, timerState.elapsed, calculateCurrentTime]);
 
   // Immediately update timer when tab becomes visible (no 1-second delay)
   useEffect(() => {

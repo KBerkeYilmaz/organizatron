@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import { format } from "date-fns";
 import {
   ArrowUpDown,
@@ -14,6 +15,7 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useAtomValue, useSetAtom } from "jotai";
 
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -36,8 +38,14 @@ import {
 } from "~/components/ui/table";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
-import type { TimerTask } from "~/store/timer-atoms";
-import { useTimer } from "~/hooks/use-timer";
+import {
+  timerStateAtom,
+  startTimerAtom,
+  pauseTimerAtom,
+  resumeTimerAtom,
+  stopTimerAtom,
+  type TimerTask,
+} from "~/store/timer-atoms";
 
 type TaskStatus = "todo" | "in_progress" | "completed" | "archived";
 type TaskPriority = "low" | "medium" | "high" | "urgent";
@@ -112,7 +120,55 @@ export function TaskTable({
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
   const utils = api.useUtils();
-  const { switchTask, pause, resume, timerState, isActive, isRunning, isPaused } = useTimer();
+
+  // Read state directly from atom (no interval needed for table)
+  const timerState = useAtomValue(timerStateAtom);
+  const isActive = timerState.status !== "idle";
+  const isRunning = timerState.status === "running";
+  const isPaused = timerState.status === "paused";
+
+  // Action atoms
+  const startTimer = useSetAtom(startTimerAtom);
+  const pauseTimer = useSetAtom(pauseTimerAtom);
+  const resumeTimer = useSetAtom(resumeTimerAtom);
+  const stopTimer = useSetAtom(stopTimerAtom);
+
+  // tRPC mutations
+  const startMutation = api.activeTimer.start.useMutation();
+  const pauseMutation = api.activeTimer.pause.useMutation();
+  const resumeMutation = api.activeTimer.resume.useMutation();
+  const stopMutation = api.activeTimer.stop.useMutation();
+
+  // Switch task: stop current + start new
+  const switchTask = useCallback(
+    (newTask: TimerTask) => {
+      if (isActive) {
+        stopTimer();
+        stopMutation.mutate(undefined, {
+          onSuccess: () => {
+            startTimer(newTask);
+            startMutation.mutate({ taskId: newTask.id });
+          },
+        });
+      } else {
+        startTimer(newTask);
+        startMutation.mutate({ taskId: newTask.id });
+      }
+    },
+    [isActive, stopTimer, stopMutation, startTimer, startMutation]
+  );
+
+  const pause = useCallback(() => {
+    if (timerState.status !== "running") return;
+    pauseTimer();
+    pauseMutation.mutate();
+  }, [timerState.status, pauseTimer, pauseMutation]);
+
+  const resume = useCallback(() => {
+    if (timerState.status !== "paused") return;
+    resumeTimer();
+    resumeMutation.mutate();
+  }, [timerState.status, resumeTimer, resumeMutation]);
 
   const deleteMutation = api.task.delete.useMutation({
     onSuccess: () => {

@@ -30,7 +30,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "~/components/ui/tooltip";
-import { useTimer } from "~/hooks/use-timer";
+import { useTimerActions } from "~/hooks/use-timer-actions";
 import { formatDuration, formatRelativeDate } from "~/lib/format";
 import { cn } from "~/lib/utils";
 import { api, type RouterOutputs } from "~/trpc/react";
@@ -59,7 +59,7 @@ export function TimeEntriesList({ data, isLoading }: TimeEntriesListProps) {
   const [editingTask, setEditingTask] = useState<EditingTask | null>(null);
 
   const utils = api.useUtils();
-  const { switchTask, pause, resume, timerState, isActive: isTimerActive, isRunning, isPaused } = useTimer();
+  const { switchTask, pause, resume, timerState, isActive: isTimerActive, isRunning, isPaused } = useTimerActions();
 
   const updateMutation = api.timeEntry.update.useMutation({
     onSuccess: () => {

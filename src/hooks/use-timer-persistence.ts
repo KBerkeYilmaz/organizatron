@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useAtom } from "jotai";
-import { timerStateAtom, type TimerState } from "~/store/timer-atoms";
+import { timerStateAtom } from "~/store/timer-atoms";
 import {
   saveTimerState,
   loadTimerState,
@@ -83,19 +83,6 @@ export function useTimerPersistence() {
     saveTimerState(timerState);
   }, [timerState]);
 
-  // Handle visibility change (tab becomes visible after sleep)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible" && timerState.status === "running") {
-        // Force a re-render to update display time after wake
-        // The display calculation uses Date.now() so it will be correct
-        setTimerState((prev) => ({ ...prev }));
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [timerState.status, setTimerState]);
+  // Note: Visibility change handling for display updates is done in use-timer.ts
+  // This hook only handles persistence, not display updates
 }

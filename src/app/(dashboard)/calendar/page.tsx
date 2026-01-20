@@ -31,7 +31,7 @@ import {
   FolderOpen,
   Play,
 } from "lucide-react";
-import { useTimer } from "~/hooks/use-timer";
+import { useTimerActions } from "~/hooks/use-timer-actions";
 import type { TimerTask } from "~/store/timer-atoms";
 
 const priorityColors: Record<string, string> = {
@@ -54,7 +54,7 @@ export default function CalendarPage() {
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [newTaskDate, setNewTaskDate] = useState<Date | null>(null);
 
-  const { start, isActive } = useTimer();
+  const { start, isActive } = useTimerActions();
 
   // Fetch all tasks with due dates
   const { data: tasks, isLoading } = api.task.getAll.useQuery();

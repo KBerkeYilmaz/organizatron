@@ -2,6 +2,7 @@ import "~/styles/globals.css";
 
 import { type Metadata } from "next";
 import { Geist } from "next/font/google";
+import { Provider as JotaiProvider } from "jotai";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "~/components/theme-provider";
 import { TRPCReactProvider } from "~/trpc/react";
@@ -27,15 +28,17 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <TRPCReactProvider>{children}</TRPCReactProvider>
-          <Toaster richColors closeButton position="bottom-right" />
-        </ThemeProvider>
+        <JotaiProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <TRPCReactProvider>{children}</TRPCReactProvider>
+            <Toaster richColors closeButton position="bottom-right" />
+          </ThemeProvider>
+        </JotaiProvider>
       </body>
     </html>
   );
