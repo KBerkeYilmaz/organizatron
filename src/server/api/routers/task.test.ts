@@ -27,6 +27,7 @@ const defaultBillingFields = {
   hourlyRate: null,
   currency: "USD",
   billingStatus: "pending" as const,
+  googleEventId: null,
 };
 
 describe("taskRouter", () => {
@@ -392,6 +393,7 @@ describe("taskRouter", () => {
         hourlyRate: 7500, // $75.00
         currency: "USD",
         billingStatus: "pending" as const,
+        googleEventId: null,
         project: mockProject,
       };
 
@@ -552,6 +554,7 @@ describe("taskRouter", () => {
         hourlyRate: 10000,
         currency: "EUR",
         billingStatus: "pending" as const,
+        googleEventId: null,
         project: mockProject,
       };
 
@@ -588,6 +591,7 @@ describe("taskRouter", () => {
         hourlyRate: null,
         currency: "USD",
         billingStatus: "pending" as const,
+        googleEventId: null,
         project: mockProject,
       };
 

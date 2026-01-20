@@ -1,9 +1,17 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { GoogleCalendarService } from "~/server/services/google-calendar";
+import type { PrismaClient } from "@prisma/client";
 
 const taskStatusEnum = z.enum(["todo", "in_progress", "completed", "archived"]);
 const priorityEnum = z.enum(["low", "medium", "high", "urgent"]);
 const billingStatusEnum = z.enum(["pending", "paid"]);
+
+// Helper to get current user ID (simplified single-user mode)
+async function getCurrentUserId(db: PrismaClient): Promise<string | null> {
+  const user = await db.user.findFirst();
+  return user?.id ?? null;
+}
 
 export const taskRouter = createTRPCRouter({
   getAll: publicProcedure
@@ -103,7 +111,8 @@ export const taskRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      return ctx.db.task.create({
+      // Create task first
+      const task = await ctx.db.task.create({
         data: {
           projectId: input.projectId,
           title: input.title,
@@ -124,6 +133,35 @@ export const taskRouter = createTRPCRouter({
           },
         },
       });
+
+      // Sync to Google Calendar if task has dueDate
+      if (task.dueDate) {
+        try {
+          const userId = await getCurrentUserId(ctx.db);
+          if (userId) {
+            const result = await GoogleCalendarService.createEvent(userId, {
+              title: task.title,
+              description: task.description,
+              dueDate: task.dueDate,
+              estimatedTime: task.estimatedTime,
+            });
+
+            if (result.success && result.eventId) {
+              // Update task with Google event ID
+              return ctx.db.task.update({
+                where: { id: task.id },
+                data: { googleEventId: result.eventId },
+                include: { project: { include: { client: true } } },
+              });
+            }
+          }
+        } catch (error) {
+          // Log but don't fail the task creation
+          console.error("[Task.create] Google Calendar sync error:", error);
+        }
+      }
+
+      return task;
     }),
 
   update: publicProcedure
@@ -147,8 +185,14 @@ export const taskRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
 
+      // Get existing task to check for googleEventId
+      const existingTask = await ctx.db.task.findUnique({
+        where: { id },
+        select: { googleEventId: true, dueDate: true },
+      });
+
       // Set completedAt when status changes to completed
-      const updateData: typeof data & { completedAt?: Date | null } = { ...data };
+      const updateData: typeof data & { completedAt?: Date | null; googleEventId?: string | null } = { ...data };
       if (data.status === "completed") {
         updateData.completedAt = new Date();
       } else if (data.status) {
@@ -156,7 +200,8 @@ export const taskRouter = createTRPCRouter({
         updateData.completedAt = null;
       }
 
-      return ctx.db.task.update({
+      // Update task
+      const task = await ctx.db.task.update({
         where: { id },
         data: updateData,
         include: {
@@ -165,11 +210,88 @@ export const taskRouter = createTRPCRouter({
           },
         },
       });
+
+      // Sync to Google Calendar
+      try {
+        const userId = await getCurrentUserId(ctx.db);
+        if (userId) {
+          if (task.dueDate) {
+            // Task has due date - create or update event
+            if (existingTask?.googleEventId) {
+              // Update existing event
+              const result = await GoogleCalendarService.updateEvent(
+                userId,
+                existingTask.googleEventId,
+                {
+                  title: task.title,
+                  description: task.description,
+                  dueDate: task.dueDate,
+                  estimatedTime: task.estimatedTime,
+                }
+              );
+
+              // If update created a new event (old one was deleted from Google)
+              if (result.success && result.eventId && result.eventId !== existingTask.googleEventId) {
+                await ctx.db.task.update({
+                  where: { id },
+                  data: { googleEventId: result.eventId },
+                });
+              }
+            } else {
+              // Create new event
+              const result = await GoogleCalendarService.createEvent(userId, {
+                title: task.title,
+                description: task.description,
+                dueDate: task.dueDate,
+                estimatedTime: task.estimatedTime,
+              });
+
+              if (result.success && result.eventId) {
+                await ctx.db.task.update({
+                  where: { id },
+                  data: { googleEventId: result.eventId },
+                });
+              }
+            }
+          } else if (existingTask?.googleEventId) {
+            // Due date was removed - delete event
+            await GoogleCalendarService.deleteEvent(userId, existingTask.googleEventId);
+            await ctx.db.task.update({
+              where: { id },
+              data: { googleEventId: null },
+            });
+          }
+        }
+      } catch (error) {
+        // Log but don't fail the task update
+        console.error("[Task.update] Google Calendar sync error:", error);
+      }
+
+      return task;
     }),
 
   delete: publicProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      // Get task to check for googleEventId before deletion
+      const task = await ctx.db.task.findUnique({
+        where: { id: input.id },
+        select: { googleEventId: true },
+      });
+
+      // Delete from Google Calendar if synced
+      if (task?.googleEventId) {
+        try {
+          const userId = await getCurrentUserId(ctx.db);
+          if (userId) {
+            await GoogleCalendarService.deleteEvent(userId, task.googleEventId);
+          }
+        } catch (error) {
+          // Log but don't fail the task deletion
+          console.error("[Task.delete] Google Calendar sync error:", error);
+        }
+      }
+
       return ctx.db.task.delete({
         where: { id: input.id },
       });
@@ -199,6 +321,34 @@ export const taskRouter = createTRPCRouter({
   deleteMany: publicProcedure
     .input(z.object({ ids: z.array(z.string()).min(1, "At least one id required") }))
     .mutation(async ({ ctx, input }) => {
+      // Get tasks with googleEventIds before deletion
+      const tasks = await ctx.db.task.findMany({
+        where: { id: { in: input.ids } },
+        select: { googleEventId: true },
+      });
+
+      // Delete from Google Calendar for any synced tasks
+      const eventIds = tasks
+        .map((t) => t.googleEventId)
+        .filter((id): id is string => id !== null);
+
+      if (eventIds.length > 0) {
+        try {
+          const userId = await getCurrentUserId(ctx.db);
+          if (userId) {
+            // Delete all events (parallel, non-blocking)
+            await Promise.allSettled(
+              eventIds.map((eventId) =>
+                GoogleCalendarService.deleteEvent(userId, eventId)
+              )
+            );
+          }
+        } catch (error) {
+          // Log but don't fail the task deletion
+          console.error("[Task.deleteMany] Google Calendar sync error:", error);
+        }
+      }
+
       return ctx.db.task.deleteMany({
         where: { id: { in: input.ids } },
       });

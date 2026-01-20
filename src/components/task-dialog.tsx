@@ -77,6 +77,7 @@ interface TaskDialogProps {
   onOpenChange: (open: boolean) => void;
   task?: Task | null;
   defaultProjectId?: string;
+  defaultDueDate?: Date;
 }
 
 export function TaskDialog({
@@ -84,6 +85,7 @@ export function TaskDialog({
   onOpenChange,
   task,
   defaultProjectId,
+  defaultDueDate,
 }: TaskDialogProps) {
   const isEditing = !!task;
 
@@ -127,8 +129,11 @@ export function TaskDialog({
       if (defaultProjectId) {
         setProjectId(defaultProjectId);
       }
+      if (defaultDueDate) {
+        setDueDate(defaultDueDate);
+      }
     }
-  }, [task, defaultProjectId, open]);
+  }, [task, defaultProjectId, defaultDueDate, open]);
 
   const resetForm = () => {
     setTitle("");

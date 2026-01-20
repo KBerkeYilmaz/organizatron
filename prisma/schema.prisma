@@ -40,6 +40,42 @@ enum ProjectStatus {
 }
 
 // ============================================================================
+// AUTH & GOOGLE INTEGRATION
+// ============================================================================
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  googleAccount GoogleAccount?
+
+  @@index([email])
+}
+
+model GoogleAccount {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  googleId     String   @unique
+  email        String
+  accessToken  String   @db.Text
+  refreshToken String?  @db.Text
+  expiresAt    DateTime
+  scope        String   @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([googleId])
+}
+
+// ============================================================================
 // CORE ENTITIES
 // ============================================================================
 
@@ -97,6 +133,9 @@ model Task {
   currency      String        @default("USD") // ISO 4217 currency code
   billingStatus BillingStatus @default(pending)
 
+  // Google Calendar sync
+  googleEventId String?
+
   // Relations
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   timeEntries TimeEntry[]
@@ -109,6 +148,7 @@ model Task {
   @@index([createdAt])
   @@index([projectId, status])
   @@index([isBillable])
+  @@index([googleEventId])
 }
 
 model TimeEntry {
