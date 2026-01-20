@@ -37,7 +37,7 @@ describe("projectRouter", () => {
           clientId: undefined,
           status: undefined,
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: { updatedAt: "desc" },
         include: { client: true },
       });
     });
@@ -66,7 +66,7 @@ describe("projectRouter", () => {
       expect(result).toEqual(mockProjects);
       expect(prismaMock.project.findMany).toHaveBeenCalledWith({
         where: { clientId: "client-1" },
-        orderBy: { createdAt: "desc" },
+        orderBy: { updatedAt: "desc" },
         include: {
           client: true,
           tasks: {
@@ -252,6 +252,83 @@ describe("projectRouter", () => {
       expect(prismaMock.project.delete).toHaveBeenCalledWith({
         where: { id: "1" },
       });
+    });
+  });
+
+  describe("getMostRecentlyActive", () => {
+    it("returns project from most recent time entry", async () => {
+      const mockProject = {
+        id: "1",
+        clientId: "client-1",
+        name: "Active Project",
+        description: null,
+        status: "active" as const,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        client: mockClient,
+      };
+
+      const mockTimeEntry = {
+        id: "entry-1",
+        taskId: "task-1",
+        startTime: new Date(),
+        endTime: new Date(),
+        duration: 3600,
+        notes: null,
+        task: {
+          id: "task-1",
+          projectId: "1",
+          title: "Test Task",
+          project: mockProject,
+        },
+      };
+
+      prismaMock.timeEntry.findFirst.mockResolvedValue(mockTimeEntry);
+
+      const caller = createTestCaller();
+      const result = await caller.project.getMostRecentlyActive();
+
+      expect(result).toEqual(mockProject);
+      expect(prismaMock.timeEntry.findFirst).toHaveBeenCalled();
+    });
+
+    it("falls back to most recently updated task's project", async () => {
+      const mockProject = {
+        id: "1",
+        clientId: "client-1",
+        name: "Task Project",
+        description: null,
+        status: "active" as const,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        client: mockClient,
+      };
+
+      const mockTask = {
+        id: "task-1",
+        projectId: "1",
+        title: "Recent Task",
+        project: mockProject,
+      };
+
+      prismaMock.timeEntry.findFirst.mockResolvedValue(null);
+      prismaMock.task.findFirst.mockResolvedValue(mockTask);
+
+      const caller = createTestCaller();
+      const result = await caller.project.getMostRecentlyActive();
+
+      expect(result).toEqual(mockProject);
+    });
+
+    it("returns null when no projects exist", async () => {
+      prismaMock.timeEntry.findFirst.mockResolvedValue(null);
+      prismaMock.task.findFirst.mockResolvedValue(null);
+      prismaMock.project.findFirst.mockResolvedValue(null);
+
+      const caller = createTestCaller();
+      const result = await caller.project.getMostRecentlyActive();
+
+      expect(result).toBeNull();
     });
   });
 });

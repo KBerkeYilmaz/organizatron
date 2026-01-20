@@ -25,7 +25,7 @@ export const projectRouter = createTRPCRouter({
           clientId: input?.clientId,
           status: input?.status,
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: { updatedAt: "desc" },
         include: { client: true },
       });
     }),
@@ -35,7 +35,7 @@ export const projectRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       return ctx.db.project.findMany({
         where: { clientId: input.clientId },
-        orderBy: { createdAt: "desc" },
+        orderBy: { updatedAt: "desc" },
         include: {
           client: true,
           tasks: {
@@ -105,4 +105,45 @@ export const projectRouter = createTRPCRouter({
         where: { id: input.id },
       });
     }),
+
+  // Get the most recently active project based on time entries or task updates
+  getMostRecentlyActive: publicProcedure.query(async ({ ctx }) => {
+    // First try to get project with most recent time entry
+    const recentTimeEntry = await ctx.db.timeEntry.findFirst({
+      orderBy: { startTime: "desc" },
+      include: {
+        task: {
+          include: {
+            project: {
+              include: { client: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (recentTimeEntry?.task?.project) {
+      return recentTimeEntry.task.project;
+    }
+
+    // Fallback to most recently updated task's project
+    const recentTask = await ctx.db.task.findFirst({
+      orderBy: { updatedAt: "desc" },
+      include: {
+        project: {
+          include: { client: true },
+        },
+      },
+    });
+
+    if (recentTask?.project) {
+      return recentTask.project;
+    }
+
+    // Final fallback: most recently updated project
+    return ctx.db.project.findFirst({
+      orderBy: { updatedAt: "desc" },
+      include: { client: true },
+    });
+  }),
 });

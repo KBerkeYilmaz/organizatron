@@ -683,6 +683,12 @@ describe("taskRouter", () => {
 
   describe("deleteMany", () => {
     it("bulk deletes multiple tasks", async () => {
+      // Mock findMany to return tasks (used for getting googleEventIds)
+      prismaMock.task.findMany.mockResolvedValue([
+        { googleEventId: null },
+        { googleEventId: null },
+        { googleEventId: null },
+      ]);
       prismaMock.task.deleteMany.mockResolvedValue({ count: 3 });
 
       const caller = createTestCaller();
@@ -697,6 +703,8 @@ describe("taskRouter", () => {
     });
 
     it("returns count of 0 when no matching ids", async () => {
+      // Mock findMany to return empty array (no matching tasks)
+      prismaMock.task.findMany.mockResolvedValue([]);
       prismaMock.task.deleteMany.mockResolvedValue({ count: 0 });
 
       const caller = createTestCaller();

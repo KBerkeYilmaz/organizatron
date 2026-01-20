@@ -2,7 +2,8 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Calendar, DollarSign, GripVertical, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Calendar, DollarSign, Eye, GripVertical, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 
 import { Badge } from "~/components/ui/badge";
@@ -147,7 +148,7 @@ export function TaskKanbanCard({ task, isDragging, onEdit }: TaskKanbanCardProps
           <GripVertical className="h-4 w-4 text-muted-foreground" />
         </button>
 
-        <div className="flex-1 min-w-0 space-y-2">
+        <Link href={`/task/${task.id}`} className="flex-1 min-w-0 space-y-2 cursor-pointer">
           {/* Title */}
           <p
             className={cn(
@@ -196,7 +197,7 @@ export function TaskKanbanCard({ task, isDragging, onEdit }: TaskKanbanCardProps
               </span>
             )}
           </div>
-        </div>
+        </Link>
 
         {/* Actions */}
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -214,6 +215,12 @@ export function TaskKanbanCard({ task, isDragging, onEdit }: TaskKanbanCardProps
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link href={`/task/${task.id}`}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  View details
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onEdit?.(task)}>
                 <Pencil className="mr-2 h-4 w-4" />
                 Edit task

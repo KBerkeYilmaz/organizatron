@@ -4,12 +4,14 @@ import { format } from "date-fns";
 import {
   ArrowUpDown,
   DollarSign,
+  Eye,
   MoreHorizontal,
   Pause,
   Pencil,
   Play,
   Trash2,
 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -365,14 +367,15 @@ export function TaskTable({
                 <TableCell>
                   <div className="flex flex-col">
                     <div className="flex items-center gap-1.5">
-                      <span
+                      <Link
+                        href={`/task/${task.id}`}
                         className={cn(
-                          "font-medium",
+                          "font-medium hover:underline",
                           task.status === "completed" && "line-through"
                         )}
                       >
                         {task.title}
-                      </span>
+                      </Link>
                       {task.isBillable && (
                         <span
                           className={cn(
@@ -400,6 +403,11 @@ export function TaskTable({
                         </span>
                       )}
                     </div>
+                    {task.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-1 max-w-[300px]">
+                        {task.description}
+                      </p>
+                    )}
                     {task.tags.length > 0 && (
                       <div className="flex gap-1 mt-1">
                         {task.tags.slice(0, 3).map((tag) => (
@@ -479,6 +487,12 @@ export function TaskTable({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      <DropdownMenuItem asChild>
+                        <Link href={`/task/${task.id}`}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          View details
+                        </Link>
+                      </DropdownMenuItem>
                       {task.status !== "completed" && (() => {
                         const TimerIcon = getTimerIcon(task);
                         return (

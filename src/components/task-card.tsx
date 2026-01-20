@@ -1,6 +1,7 @@
 "use client";
 
-import { Calendar, Clock, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Calendar, Clock, Eye, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 
 import { Badge } from "~/components/ui/badge";
@@ -146,16 +147,18 @@ export function TaskCard({ task, compact = false, onEdit }: TaskCardProps) {
             )}
 
             {/* Title */}
-            <h4
-              className={cn(
-                "font-medium leading-tight",
-                compact ? "text-sm" : "text-base",
-                task.status === "completed" &&
-                  "text-muted-foreground line-through"
-              )}
-            >
-              {task.title}
-            </h4>
+            <Link href={`/task/${task.id}`}>
+              <h4
+                className={cn(
+                  "font-medium leading-tight hover:underline cursor-pointer",
+                  compact ? "text-sm" : "text-base",
+                  task.status === "completed" &&
+                    "text-muted-foreground line-through"
+                )}
+              >
+                {task.title}
+              </h4>
+            </Link>
 
             {/* Meta info */}
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -200,6 +203,12 @@ export function TaskCard({ task, compact = false, onEdit }: TaskCardProps) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem asChild>
+                    <Link href={`/task/${task.id}`}>
+                      <Eye className="mr-2 h-4 w-4" />
+                      View details
+                    </Link>
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => onEdit?.(task)}>
                     <Pencil className="mr-2 h-4 w-4" />
                     Edit task
