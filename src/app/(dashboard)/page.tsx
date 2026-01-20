@@ -1,22 +1,45 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import type { User } from "@supabase/supabase-js";
+
 import { ActiveTimer } from "~/components/active-timer";
 import { ClientTimeSummary } from "~/components/client-time-summary";
 import { PageHeader } from "~/components/page-header";
 import { ProjectsOverview } from "~/components/projects-overview";
 import { TaskTimeEntries } from "~/components/task-time-entries";
 import { TodayTasks } from "~/components/today-tasks";
+import { createClient } from "~/lib/supabase/client";
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
 
 export default function DashboardPage() {
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+  }, []);
+
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
   });
 
+  const userName = user?.user_metadata?.full_name ?? user?.email?.split("@")[0] ?? "there";
+  const greeting = `${getGreeting()}, ${userName}`;
+
   return (
     <>
-      <PageHeader title="Good morning, Berke" subtitle={today} />
+      <PageHeader title={greeting} subtitle={today} />
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">

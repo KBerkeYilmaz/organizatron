@@ -6,13 +6,18 @@ import {
   FolderKanban,
   LayoutDashboard,
   ListTodo,
+  LogOut,
   Settings,
   Timer,
+  User,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 
-import { Avatar, AvatarFallback } from "~/components/ui/avatar";
+import { createClient } from "~/lib/supabase/client";
+import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -64,6 +69,44 @@ const navigation = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    // Get initial user
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  };
+
+  // Get user display info
+  const userEmail = user?.email ?? "";
+  const userName = user?.user_metadata?.full_name ?? user?.email?.split("@")[0] ?? "User";
+  const userAvatar = user?.user_metadata?.avatar_url;
+  const userInitials = userName
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -135,17 +178,18 @@ export function AppSidebar() {
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
                   size="lg"
-                  tooltip="Berke - Personal Workspace"
+                  tooltip={`${userName} - ${userEmail}`}
                 >
                   <Avatar className="size-8 rounded-lg">
+                    {userAvatar && <AvatarImage src={userAvatar} alt={userName} />}
                     <AvatarFallback className="rounded-lg bg-primary/10 text-xs font-medium text-primary">
-                      BK
+                      {userInitials}
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">Berke</span>
+                    <span className="truncate font-semibold">{userName}</span>
                     <span className="truncate text-xs text-muted-foreground">
-                      Personal Workspace
+                      {userEmail}
                     </span>
                   </div>
                   <ChevronUp className="ml-auto size-4" />
@@ -157,10 +201,15 @@ export function AppSidebar() {
                 sideOffset={4}
                 className="w-56"
               >
-                <DropdownMenuItem>Profile</DropdownMenuItem>
-                <DropdownMenuItem>Billing</DropdownMenuItem>
+                <DropdownMenuItem>
+                  <User className="mr-2 size-4" />
+                  Profile
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>Sign out</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleSignOut}>
+                  <LogOut className="mr-2 size-4" />
+                  Sign out
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>
