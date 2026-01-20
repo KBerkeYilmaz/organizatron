@@ -9,7 +9,6 @@ import { useTimer } from "./use-timer";
  * - Space: Pause/Resume timer (when active)
  * - S: Stop and save timer
  * - D: Discard timer
- * - Escape: Discard timer (alternative)
  */
 export function useTimerHotkeys() {
   const { isActive, isRunning, isPaused, pause, resume, stop, discard } =
@@ -36,11 +35,6 @@ export function useTimerHotkeys() {
       },
       {
         key: "d",
-        handler: discard,
-        enabled: isActive,
-      },
-      {
-        key: "Escape",
         handler: discard,
         enabled: isActive,
       },
