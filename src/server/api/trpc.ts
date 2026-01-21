@@ -10,7 +10,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
 import { db } from "~/server/db";
-import { createClient } from "~/lib/supabase/server";
+import { auth } from "~/lib/auth";
 
 /**
  * 1. CONTEXT
@@ -25,15 +25,14 @@ import { createClient } from "~/lib/supabase/server";
  * @see https://trpc.io/docs/server/context
  */
 export const createTRPCContext = async (opts: { headers: Headers }) => {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const session = await auth.api.getSession({
+    headers: opts.headers,
+  });
 
   return {
     db,
-    user,
-    supabase,
+    session,
+    user: session?.user ?? null,
     ...opts,
   };
 };

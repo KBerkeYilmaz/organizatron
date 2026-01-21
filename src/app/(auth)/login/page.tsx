@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createClient } from "~/lib/supabase/client";
+import { signIn } from "~/lib/auth-client";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -23,9 +23,7 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(
-    searchParams.get("error") === "auth_callback_error"
-      ? "Authentication failed. Please try again."
-      : null
+    searchParams.get("error") ? "Authentication failed. Please try again." : null
   );
   const [isLoading, setIsLoading] = useState(false);
 
@@ -34,14 +32,13 @@ function LoginForm() {
     setIsLoading(true);
     setError(null);
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await signIn.email({
       email,
       password,
     });
 
     if (error) {
-      setError(error.message);
+      setError(error.message ?? "Login failed");
       setIsLoading(false);
       return;
     }
@@ -54,22 +51,10 @@ function LoginForm() {
     setIsLoading(true);
     setError(null);
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOAuth({
+    await signIn.social({
       provider: "google",
-      options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback`,
-        queryParams: {
-          access_type: "offline",
-          prompt: "consent",
-        },
-      },
+      callbackURL: "/",
     });
-
-    if (error) {
-      setError(error.message);
-      setIsLoading(false);
-    }
   };
 
   return (

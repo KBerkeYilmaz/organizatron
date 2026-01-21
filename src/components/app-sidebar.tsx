@@ -13,10 +13,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import type { User as SupabaseUser } from "@supabase/supabase-js";
 
-import { createClient } from "~/lib/supabase/client";
+import { useSession, signOut } from "~/lib/auth-client";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import {
   DropdownMenu,
@@ -70,37 +68,19 @@ const navigation = [
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [user, setUser] = useState<SupabaseUser | null>(null);
-
-  useEffect(() => {
-    const supabase = createClient();
-
-    // Get initial user
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
-    });
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const { data: session } = useSession();
 
   const handleSignOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    await signOut();
     router.push("/login");
     router.refresh();
   };
 
   // Get user display info
+  const user = session?.user;
   const userEmail = user?.email ?? "";
-  const userName = user?.user_metadata?.full_name ?? user?.email?.split("@")[0] ?? "User";
-  const userAvatar = user?.user_metadata?.avatar_url;
+  const userName = user?.name ?? user?.email?.split("@")[0] ?? "User";
+  const userAvatar = user?.image;
   const userInitials = userName
     .split(" ")
     .map((n: string) => n[0])

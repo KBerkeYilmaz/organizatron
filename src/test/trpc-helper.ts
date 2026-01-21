@@ -1,24 +1,28 @@
-import { appRouter, createCaller } from "~/server/api/root";
+import { createCaller } from "~/server/api/root";
 import { prismaMock, type MockPrismaClient } from "./db-mock";
 
-// Mock user for testing
+// Mock user for testing (Better Auth format)
 const mockUser = {
   id: "test-user-id",
   email: "test@example.com",
-  aud: "authenticated",
-  role: "authenticated",
-  created_at: new Date().toISOString(),
-  app_metadata: {},
-  user_metadata: {},
+  name: "Test User",
+  emailVerified: true,
+  image: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
 } as const;
 
-// Mock Supabase client for testing
-const mockSupabase = {
-  auth: {
-    getUser: () => Promise.resolve({ data: { user: mockUser }, error: null }),
-    getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-  },
-} as any;
+// Mock session for testing
+const mockSession = {
+  id: "test-session-id",
+  userId: mockUser.id,
+  expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+  token: "test-token",
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  ipAddress: null,
+  userAgent: null,
+};
 
 export function createTestCaller(db: MockPrismaClient = prismaMock, user = mockUser as any) {
   return createCaller(() =>
@@ -26,7 +30,7 @@ export function createTestCaller(db: MockPrismaClient = prismaMock, user = mockU
       db,
       headers: new Headers(),
       user,
-      supabase: mockSupabase,
+      session: { session: mockSession, user },
     })
   );
 }
@@ -37,7 +41,7 @@ export function createUnauthenticatedTestCaller(db: MockPrismaClient = prismaMoc
       db,
       headers: new Headers(),
       user: null,
-      supabase: mockSupabase,
+      session: null,
     })
   );
 }

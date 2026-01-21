@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { User } from "@supabase/supabase-js";
-
 import { ActiveTimer } from "~/components/active-timer";
 import { ClientTimeSummary } from "~/components/client-time-summary";
 import { PageHeader } from "~/components/page-header";
 import { ProjectsOverview } from "~/components/projects-overview";
 import { TaskTimeEntries } from "~/components/task-time-entries";
 import { TodayTasks } from "~/components/today-tasks";
-import { createClient } from "~/lib/supabase/client";
+import { useSession } from "~/lib/auth-client";
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -19,14 +16,8 @@ function getGreeting(): string {
 }
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
-    });
-  }, []);
+  const { data: session } = useSession();
+  const user = session?.user;
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -34,7 +25,7 @@ export default function DashboardPage() {
     day: "numeric",
   });
 
-  const userName = user?.user_metadata?.full_name ?? user?.email?.split("@")[0] ?? "there";
+  const userName = user?.name ?? user?.email?.split("@")[0] ?? "there";
   const greeting = `${getGreeting()}, ${userName}`;
 
   return (

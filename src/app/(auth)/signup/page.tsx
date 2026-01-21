@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { createClient } from "~/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import { signIn, signUp } from "~/lib/auth-client";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -17,12 +18,13 @@ import {
 import { Loader2 } from "lucide-react";
 
 export default function SignupPage() {
+  const router = useRouter();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,77 +37,37 @@ export default function SignupPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters");
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
       setIsLoading(false);
       return;
     }
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
+    const { error } = await signUp.email({
       email,
       password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/api/auth/callback`,
-      },
+      name,
     });
 
     if (error) {
-      setError(error.message);
+      setError(error.message ?? "Signup failed");
       setIsLoading(false);
       return;
     }
 
-    setSuccess(true);
-    setIsLoading(false);
+    router.push("/");
+    router.refresh();
   };
 
   const handleGoogleSignup = async () => {
     setIsLoading(true);
     setError(null);
 
-    const redirectUrl = `${window.location.origin}/api/auth/callback`;
-
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOAuth({
+    await signIn.social({
       provider: "google",
-      options: {
-        redirectTo: redirectUrl,
-        queryParams: {
-          access_type: "offline",
-          prompt: "consent",
-        },
-      },
+      callbackURL: "/",
     });
-
-    if (error) {
-      setError(error.message);
-      setIsLoading(false);
-    }
   };
-
-  if (success) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold">Check your email</CardTitle>
-            <CardDescription>
-              We&apos;ve sent you a confirmation link to <strong>{email}</strong>.
-              Click the link to activate your account.
-            </CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Link href="/login" className="w-full">
-              <Button variant="outline" className="w-full">
-                Back to login
-              </Button>
-            </Link>
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
@@ -113,7 +75,7 @@ export default function SignupPage() {
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
           <CardDescription>
-            Enter your email below to create your account
+            Enter your details below to create your account
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -124,6 +86,18 @@ export default function SignupPage() {
           )}
 
           <form onSubmit={handleSignup} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="John Doe"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                disabled={isLoading}
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
