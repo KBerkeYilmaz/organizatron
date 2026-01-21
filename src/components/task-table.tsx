@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback } from "react";
 import { format } from "date-fns";
 import {
   ArrowUpDown,
@@ -15,7 +14,6 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useAtomValue, useSetAtom } from "jotai";
 
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -36,16 +34,10 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
+import { useTimerActions } from "~/hooks/use-timer-actions";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
-import {
-  timerStateAtom,
-  startTimerAtom,
-  pauseTimerAtom,
-  resumeTimerAtom,
-  stopTimerAtom,
-  type TimerTask,
-} from "~/store/timer-atoms";
+import type { TimerTask } from "~/store/timer-atoms";
 
 type TaskStatus = "todo" | "in_progress" | "completed" | "archived";
 type TaskPriority = "low" | "medium" | "high" | "urgent";
@@ -121,54 +113,15 @@ export function TaskTable({
 
   const utils = api.useUtils();
 
-  // Read state directly from atom (no interval needed for table)
-  const timerState = useAtomValue(timerStateAtom);
-  const isActive = timerState.status !== "idle";
-  const isRunning = timerState.status === "running";
-  const isPaused = timerState.status === "paused";
-
-  // Action atoms
-  const startTimer = useSetAtom(startTimerAtom);
-  const pauseTimer = useSetAtom(pauseTimerAtom);
-  const resumeTimer = useSetAtom(resumeTimerAtom);
-  const stopTimer = useSetAtom(stopTimerAtom);
-
-  // tRPC mutations
-  const startMutation = api.activeTimer.start.useMutation();
-  const pauseMutation = api.activeTimer.pause.useMutation();
-  const resumeMutation = api.activeTimer.resume.useMutation();
-  const stopMutation = api.activeTimer.stop.useMutation();
-
-  // Switch task: stop current + start new
-  const switchTask = useCallback(
-    (newTask: TimerTask) => {
-      if (isActive) {
-        stopTimer();
-        stopMutation.mutate(undefined, {
-          onSuccess: () => {
-            startTimer(newTask);
-            startMutation.mutate({ taskId: newTask.id });
-          },
-        });
-      } else {
-        startTimer(newTask);
-        startMutation.mutate({ taskId: newTask.id });
-      }
-    },
-    [isActive, stopTimer, stopMutation, startTimer, startMutation]
-  );
-
-  const pause = useCallback(() => {
-    if (timerState.status !== "running") return;
-    pauseTimer();
-    pauseMutation.mutate();
-  }, [timerState.status, pauseTimer, pauseMutation]);
-
-  const resume = useCallback(() => {
-    if (timerState.status !== "paused") return;
-    resumeTimer();
-    resumeMutation.mutate();
-  }, [timerState.status, resumeTimer, resumeMutation]);
+  // Use the improved timer actions hook with proper toasts and invalidation
+  const {
+    timerState,
+    isActive,
+    isRunning,
+    switchTask,
+    pause,
+    resume,
+  } = useTimerActions();
 
   const deleteMutation = api.task.delete.useMutation({
     onSuccess: () => {
@@ -235,7 +188,7 @@ export function TaskTable({
   const handleTimerAction = (task: Task) => {
     const isThisTask = timerState.task?.id === task.id;
     const isThisTaskRunning = isThisTask && isRunning;
-    const isThisTaskPaused = isThisTask && isPaused;
+    const isThisTaskPaused = isThisTask && timerState.status === "paused";
 
     if (isThisTaskRunning) {
       // This task is running → pause it
@@ -268,7 +221,7 @@ export function TaskTable({
   const getTimerActionLabel = (task: Task) => {
     const isThisTask = timerState.task?.id === task.id;
     const isThisTaskRunning = isThisTask && isRunning;
-    const isThisTaskPaused = isThisTask && isPaused;
+    const isThisTaskPaused = isThisTask && timerState.status === "paused";
 
     if (isThisTaskRunning) return "Pause Timer";
     if (isThisTaskPaused) return "Resume Timer";

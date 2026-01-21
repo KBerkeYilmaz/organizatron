@@ -116,7 +116,11 @@ export function useOfflineSync() {
     }
   }, [processAction, updatePendingCount]);
 
-  // Listen for online/offline events
+  // Store syncQueue in a ref so event handlers always have latest version
+  const syncQueueRef = useRef(syncQueue);
+  syncQueueRef.current = syncQueue;
+
+  // Listen for online/offline events - stable effect with no dependencies
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
@@ -126,7 +130,7 @@ export function useOfflineSync() {
           : "Connection restored",
       });
       // Sync after a short delay to ensure connection is stable
-      setTimeout(syncQueue, 1000);
+      setTimeout(() => syncQueueRef.current(), 1000);
     };
 
     const handleOffline = () => {
@@ -139,18 +143,20 @@ export function useOfflineSync() {
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
-    // Initial pending count
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  // Separate effect for initial sync on mount
+  useEffect(() => {
     updatePendingCount();
 
     // Try to sync on mount if online and have pending actions
     if (navigator.onLine && hasPendingActions()) {
       syncQueue();
     }
-
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
   }, [syncQueue, updatePendingCount]);
 
   return {

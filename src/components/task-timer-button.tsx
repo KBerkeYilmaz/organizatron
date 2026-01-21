@@ -1,9 +1,7 @@
 "use client";
 
-import { useCallback } from "react";
 import { Pause, Play } from "lucide-react";
 import type { VariantProps } from "class-variance-authority";
-import { useAtomValue, useSetAtom } from "jotai";
 
 import { Button, buttonVariants } from "~/components/ui/button";
 import {
@@ -12,16 +10,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "~/components/ui/tooltip";
+import { useTimerActions } from "~/hooks/use-timer-actions";
 import { cn } from "~/lib/utils";
-import {
-  timerStateAtom,
-  startTimerAtom,
-  pauseTimerAtom,
-  resumeTimerAtom,
-  stopTimerAtom,
-  type TimerTask,
-} from "~/store/timer-atoms";
-import { api } from "~/trpc/react";
+import type { TimerTask } from "~/store/timer-atoms";
 
 type ButtonProps = React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
@@ -36,7 +27,7 @@ interface TaskTimerButtonProps extends Omit<ButtonProps, "onClick"> {
 
 /**
  * A reusable button component that handles timer start/pause/switch logic.
- * Uses atoms directly to avoid creating timer intervals (no display needed).
+ * Uses useTimerActions for proper toast notifications and query invalidation.
  *
  * - If no timer is active → Shows play button, starts timer on click
  * - If a different task's timer is active → Shows play button, switches to this task on click
@@ -52,58 +43,19 @@ export function TaskTimerButton({
   size = "icon",
   ...props
 }: TaskTimerButtonProps) {
-  // Read state directly from atom (no interval needed for buttons)
-  const timerState = useAtomValue(timerStateAtom);
-  const isActive = timerState.status !== "idle";
-  const isRunning = timerState.status === "running";
-  const isPaused = timerState.status === "paused";
-
-  // Action atoms
-  const startTimer = useSetAtom(startTimerAtom);
-  const pauseTimer = useSetAtom(pauseTimerAtom);
-  const resumeTimer = useSetAtom(resumeTimerAtom);
-  const stopTimer = useSetAtom(stopTimerAtom);
-
-  // tRPC mutations
-  const startMutation = api.activeTimer.start.useMutation();
-  const pauseMutation = api.activeTimer.pause.useMutation();
-  const resumeMutation = api.activeTimer.resume.useMutation();
-  const stopMutation = api.activeTimer.stop.useMutation();
-
-  // Switch task: stop current + start new
-  const switchTask = useCallback(
-    (newTask: TimerTask) => {
-      if (isActive) {
-        stopTimer();
-        stopMutation.mutate(undefined, {
-          onSuccess: () => {
-            startTimer(newTask);
-            startMutation.mutate({ taskId: newTask.id });
-          },
-        });
-      } else {
-        startTimer(newTask);
-        startMutation.mutate({ taskId: newTask.id });
-      }
-    },
-    [isActive, stopTimer, stopMutation, startTimer, startMutation]
-  );
-
-  const pause = useCallback(() => {
-    if (timerState.status !== "running") return;
-    pauseTimer();
-    pauseMutation.mutate();
-  }, [timerState.status, pauseTimer, pauseMutation]);
-
-  const resume = useCallback(() => {
-    if (timerState.status !== "paused") return;
-    resumeTimer();
-    resumeMutation.mutate();
-  }, [timerState.status, resumeTimer, resumeMutation]);
+  const {
+    timerState,
+    isActive,
+    isRunning,
+    isMutating,
+    switchTask,
+    pause,
+    resume,
+  } = useTimerActions();
 
   const isThisTask = timerState.task?.id === task.id;
   const isThisTaskRunning = isThisTask && isRunning;
-  const isThisTaskPaused = isThisTask && isPaused;
+  const isThisTaskPaused = isThisTask && timerState.status === "paused";
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -148,6 +100,7 @@ export function TaskTimerButton({
         className
       )}
       onClick={handleClick}
+      disabled={isMutating}
       {...props}
     >
       {isThisTaskRunning ? (
