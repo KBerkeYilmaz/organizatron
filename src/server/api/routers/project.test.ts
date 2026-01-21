@@ -275,6 +275,8 @@ describe("projectRouter", () => {
         endTime: new Date(),
         duration: 3600,
         notes: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
         task: {
           id: "task-1",
           projectId: "1",
@@ -283,7 +285,7 @@ describe("projectRouter", () => {
         },
       };
 
-      prismaMock.timeEntry.findFirst.mockResolvedValue(mockTimeEntry);
+      prismaMock.timeEntry.findFirst.mockResolvedValue(mockTimeEntry as never);
 
       const caller = createTestCaller();
       const result = await caller.project.getMostRecentlyActive();
@@ -312,7 +314,7 @@ describe("projectRouter", () => {
       };
 
       prismaMock.timeEntry.findFirst.mockResolvedValue(null);
-      prismaMock.task.findFirst.mockResolvedValue(mockTask);
+      prismaMock.task.findFirst.mockResolvedValue(mockTask as never);
 
       const caller = createTestCaller();
       const result = await caller.project.getMostRecentlyActive();

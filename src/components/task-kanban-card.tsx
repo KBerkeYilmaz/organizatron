@@ -30,6 +30,7 @@ export interface KanbanTask {
   priority: Priority;
   estimatedTime: number | null;
   dueDate: Date | null;
+  scheduledStart: Date | null;
   tags: string[];
   isBillable: boolean;
   hourlyRate: number | null;

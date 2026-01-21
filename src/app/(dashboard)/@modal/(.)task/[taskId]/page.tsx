@@ -50,6 +50,7 @@ export default function TaskModalPage() {
             projectId: task.projectId,
             estimatedTime: task.estimatedTime,
             dueDate: task.dueDate,
+            scheduledStart: task.scheduledStart,
             tags: task.tags,
             isBillable: task.isBillable,
             hourlyRate: task.hourlyRate,

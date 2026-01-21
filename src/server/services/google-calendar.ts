@@ -89,13 +89,15 @@ export class GoogleCalendarService {
 
   /**
    * Create a Google Calendar event from a task
+   * Uses scheduledStart if available, falls back to dueDate
    */
   static async createEvent(
     userId: string,
     task: {
       title: string;
       description?: string | null;
-      dueDate: Date;
+      scheduledStart?: Date | null;
+      dueDate?: Date | null;
       estimatedTime?: number | null;
     }
   ): Promise<GoogleCalendarResult> {
@@ -105,6 +107,9 @@ export class GoogleCalendarService {
     }
 
     const event = this.taskToCalendarEvent(task);
+    if (!event) {
+      return { success: false, error: "Task has no scheduledStart or dueDate" };
+    }
 
     try {
       const response = await fetch(
@@ -135,6 +140,7 @@ export class GoogleCalendarService {
 
   /**
    * Update an existing Google Calendar event
+   * Uses scheduledStart if available, falls back to dueDate
    */
   static async updateEvent(
     userId: string,
@@ -142,7 +148,8 @@ export class GoogleCalendarService {
     task: {
       title: string;
       description?: string | null;
-      dueDate: Date;
+      scheduledStart?: Date | null;
+      dueDate?: Date | null;
       estimatedTime?: number | null;
     }
   ): Promise<GoogleCalendarResult> {
@@ -152,6 +159,9 @@ export class GoogleCalendarService {
     }
 
     const event = this.taskToCalendarEvent(task);
+    if (!event) {
+      return { success: false, error: "Task has no scheduledStart or dueDate" };
+    }
 
     try {
       const response = await fetch(
@@ -223,19 +233,28 @@ export class GoogleCalendarService {
 
   /**
    * Convert task to Google Calendar event format
+   * Priority: scheduledStart > dueDate
+   * - If scheduledStart exists: use it as start time (timed event)
+   * - Else if dueDate exists: use it (all-day if no estimatedTime)
    */
   private static taskToCalendarEvent(task: {
     title: string;
     description?: string | null;
-    dueDate: Date;
+    scheduledStart?: Date | null;
+    dueDate?: Date | null;
     estimatedTime?: number | null;
-  }): CalendarEvent {
-    const startDate = new Date(task.dueDate);
+  }): CalendarEvent | null {
+    // Use scheduledStart if available, otherwise fall back to dueDate
+    const eventTime = task.scheduledStart ?? task.dueDate;
+    if (!eventTime) return null;
 
-    // If task has estimated time, create a timed event
-    // Otherwise, create an all-day event
-    if (task.estimatedTime) {
-      const endDate = new Date(startDate.getTime() + task.estimatedTime * 1000);
+    const startDate = new Date(eventTime);
+
+    // If we have scheduledStart OR estimatedTime, create a timed event
+    // scheduledStart implies a specific time slot
+    if (task.scheduledStart || task.estimatedTime) {
+      const duration = task.estimatedTime ?? 3600; // Default 1 hour if no estimate
+      const endDate = new Date(startDate.getTime() + duration * 1000);
       return {
         summary: task.title,
         description: task.description ?? undefined,
@@ -243,7 +262,7 @@ export class GoogleCalendarService {
         end: { dateTime: endDate.toISOString(), timeZone: "UTC" },
       };
     } else {
-      // All-day event
+      // All-day event (only dueDate, no scheduledStart or estimatedTime)
       const dateStr = startDate.toISOString().split("T")[0]!;
       return {
         summary: task.title,

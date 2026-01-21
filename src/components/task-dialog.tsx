@@ -55,6 +55,7 @@ interface Task {
   projectId: string;
   estimatedTime: number | null;
   dueDate: Date | null;
+  scheduledStart: Date | null;
   tags: string[];
   // Billing
   isBillable: boolean;
@@ -78,6 +79,7 @@ interface TaskDialogProps {
   task?: Task | null;
   defaultProjectId?: string;
   defaultDueDate?: Date;
+  defaultScheduledStart?: Date;
 }
 
 export function TaskDialog({
@@ -86,6 +88,7 @@ export function TaskDialog({
   task,
   defaultProjectId,
   defaultDueDate,
+  defaultScheduledStart,
 }: TaskDialogProps) {
   const isEditing = !!task;
 
@@ -97,6 +100,7 @@ export function TaskDialog({
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [estimatedTime, setEstimatedTime] = useState("");
   const [dueDate, setDueDate] = useState<Date | undefined>();
+  const [scheduledStart, setScheduledStart] = useState<Date | undefined>();
   const [tags, setTags] = useState("");
   // Billing state
   const [isBillable, setIsBillable] = useState(false);
@@ -118,6 +122,7 @@ export function TaskDialog({
         task.estimatedTime ? String(Math.floor(task.estimatedTime / 60)) : ""
       );
       setDueDate(task.dueDate ? new Date(task.dueDate) : undefined);
+      setScheduledStart(task.scheduledStart ? new Date(task.scheduledStart) : undefined);
       setTags(task.tags.join(", "));
       // Billing
       setIsBillable(task.isBillable);
@@ -132,8 +137,11 @@ export function TaskDialog({
       if (defaultDueDate) {
         setDueDate(defaultDueDate);
       }
+      if (defaultScheduledStart) {
+        setScheduledStart(defaultScheduledStart);
+      }
     }
-  }, [task, defaultProjectId, defaultDueDate, open]);
+  }, [task, defaultProjectId, defaultDueDate, defaultScheduledStart, open]);
 
   const resetForm = () => {
     setTitle("");
@@ -143,6 +151,7 @@ export function TaskDialog({
     setPriority("medium");
     setEstimatedTime("");
     setDueDate(undefined);
+    setScheduledStart(undefined);
     setTags("");
     // Billing
     setIsBillable(false);
@@ -165,7 +174,7 @@ export function TaskDialog({
           projects: [],
         };
       }
-      acc[clientId].projects.push(project);
+      acc[clientId]!.projects.push(project);
       return acc;
     },
     {} as Record<
@@ -219,6 +228,7 @@ export function TaskDialog({
         priority,
         estimatedTime: parsedEstimatedTime,
         dueDate: dueDate ?? null,
+        scheduledStart: scheduledStart ?? null,
         tags: parsedTags,
         isBillable,
         hourlyRate: parsedHourlyRate,
@@ -234,6 +244,7 @@ export function TaskDialog({
         priority,
         estimatedTime: parsedEstimatedTime ?? undefined,
         dueDate,
+        scheduledStart,
         tags: parsedTags,
         isBillable,
         hourlyRate: parsedHourlyRate ?? undefined,
@@ -361,6 +372,69 @@ export function TaskDialog({
               </div>
             </div>
 
+            {/* Scheduled Start (Date & Time) - shown when set */}
+            {scheduledStart && (
+              <div className="space-y-2">
+                <Label>Scheduled Start</Label>
+                <div className="flex gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "flex-1 justify-start text-left font-normal",
+                          !scheduledStart && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {scheduledStart ? format(scheduledStart, "PPP") : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={scheduledStart}
+                        onSelect={(date) => {
+                          if (date && scheduledStart) {
+                            // Preserve the time when changing date
+                            date.setHours(scheduledStart.getHours());
+                            date.setMinutes(scheduledStart.getMinutes());
+                          }
+                          setScheduledStart(date);
+                        }}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <Input
+                    type="time"
+                    className="w-[120px]"
+                    value={scheduledStart ? format(scheduledStart, "HH:mm") : ""}
+                    onChange={(e) => {
+                      if (scheduledStart && e.target.value) {
+                        const [hours, minutes] = e.target.value.split(":").map(Number);
+                        const newDate = new Date(scheduledStart);
+                        newDate.setHours(hours ?? 0);
+                        newDate.setMinutes(minutes ?? 0);
+                        setScheduledStart(newDate);
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setScheduledStart(undefined)}
+                    title="Clear scheduled start"
+                  >
+                    ×
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  When you plan to work on this task
+                </p>
+              </div>
+            )}
+
             {/* Estimated Time & Due Date */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -395,7 +469,6 @@ export function TaskDialog({
                       mode="single"
                       selected={dueDate}
                       onSelect={setDueDate}
-                      initialFocus
                     />
                   </PopoverContent>
                 </Popover>

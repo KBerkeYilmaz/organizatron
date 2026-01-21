@@ -102,6 +102,7 @@ export const taskRouter = createTRPCRouter({
         priority: priorityEnum.optional(),
         estimatedTime: z.number().int().positive().optional(),
         dueDate: z.date().optional(),
+        scheduledStart: z.date().optional(), // When to work on the task
         tags: z.array(z.string()).optional(),
         // Billing fields
         isBillable: z.boolean().optional(),
@@ -121,6 +122,7 @@ export const taskRouter = createTRPCRouter({
           priority: input.priority,
           estimatedTime: input.estimatedTime,
           dueDate: input.dueDate,
+          scheduledStart: input.scheduledStart,
           tags: input.tags ?? [],
           isBillable: input.isBillable,
           hourlyRate: input.hourlyRate,
@@ -134,14 +136,15 @@ export const taskRouter = createTRPCRouter({
         },
       });
 
-      // Sync to Google Calendar if task has dueDate
-      if (task.dueDate) {
+      // Sync to Google Calendar if task has scheduledStart or dueDate
+      if (task.scheduledStart || task.dueDate) {
         try {
           const userId = await getCurrentUserId(ctx.db);
           if (userId) {
             const result = await GoogleCalendarService.createEvent(userId, {
               title: task.title,
               description: task.description,
+              scheduledStart: task.scheduledStart,
               dueDate: task.dueDate,
               estimatedTime: task.estimatedTime,
             });
@@ -174,6 +177,7 @@ export const taskRouter = createTRPCRouter({
         priority: priorityEnum.optional(),
         estimatedTime: z.number().int().positive().nullable().optional(),
         dueDate: z.date().nullable().optional(),
+        scheduledStart: z.date().nullable().optional(), // When to work on the task
         tags: z.array(z.string()).optional(),
         // Billing fields
         isBillable: z.boolean().optional(),
@@ -185,10 +189,10 @@ export const taskRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
 
-      // Get existing task to check for googleEventId
+      // Get existing task to check for googleEventId and time fields
       const existingTask = await ctx.db.task.findUnique({
         where: { id },
-        select: { googleEventId: true, dueDate: true },
+        select: { googleEventId: true, scheduledStart: true, dueDate: true },
       });
 
       // Set completedAt when status changes to completed
@@ -215,8 +219,10 @@ export const taskRouter = createTRPCRouter({
       try {
         const userId = await getCurrentUserId(ctx.db);
         if (userId) {
-          if (task.dueDate) {
-            // Task has due date - create or update event
+          const hasTimeInfo = task.scheduledStart || task.dueDate;
+
+          if (hasTimeInfo) {
+            // Task has time info - create or update event
             if (existingTask?.googleEventId) {
               // Update existing event
               const result = await GoogleCalendarService.updateEvent(
@@ -225,6 +231,7 @@ export const taskRouter = createTRPCRouter({
                 {
                   title: task.title,
                   description: task.description,
+                  scheduledStart: task.scheduledStart,
                   dueDate: task.dueDate,
                   estimatedTime: task.estimatedTime,
                 }
@@ -242,6 +249,7 @@ export const taskRouter = createTRPCRouter({
               const result = await GoogleCalendarService.createEvent(userId, {
                 title: task.title,
                 description: task.description,
+                scheduledStart: task.scheduledStart,
                 dueDate: task.dueDate,
                 estimatedTime: task.estimatedTime,
               });
@@ -254,7 +262,7 @@ export const taskRouter = createTRPCRouter({
               }
             }
           } else if (existingTask?.googleEventId) {
-            // Due date was removed - delete event
+            // Both scheduledStart and dueDate were removed - delete event
             await GoogleCalendarService.deleteEvent(userId, existingTask.googleEventId);
             await ctx.db.task.update({
               where: { id },

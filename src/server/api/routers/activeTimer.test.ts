@@ -30,6 +30,7 @@ const mockTask = {
   priority: "medium" as const,
   estimatedTime: null,
   dueDate: null,
+  scheduledStart: null,
   tags: [],
   createdAt: new Date(),
   updatedAt: new Date(),

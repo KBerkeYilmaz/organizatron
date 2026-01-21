@@ -52,6 +52,7 @@ interface Task {
   projectId: string;
   estimatedTime: number | null;
   dueDate: Date | null;
+  scheduledStart: Date | null;
   tags: string[];
   createdAt: Date;
   // Billing

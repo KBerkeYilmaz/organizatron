@@ -167,18 +167,19 @@ model Project {
 }
 
 model Task {
-  id            String     @id @default(cuid())
-  projectId     String
-  title         String
-  description   String?
-  status        TaskStatus @default(todo)
-  priority      Priority   @default(medium)
-  estimatedTime Int? // in seconds
-  dueDate       DateTime?
-  tags          String[]   @default([])
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  completedAt   DateTime?
+  id             String     @id @default(cuid())
+  projectId      String
+  title          String
+  description    String?
+  status         TaskStatus @default(todo)
+  priority       Priority   @default(medium)
+  estimatedTime  Int? // in seconds
+  dueDate        DateTime? // Deadline - when task must be done by
+  scheduledStart DateTime? // Scheduled start - when to work on it (AI can auto-fill)
+  tags           String[]   @default([])
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  completedAt    DateTime?
 
   // Billing
   isBillable    Boolean       @default(false)
@@ -198,6 +199,7 @@ model Task {
   @@index([status])
   @@index([priority])
   @@index([dueDate])
+  @@index([scheduledStart])
   @@index([createdAt])
   @@index([projectId, status])
   @@index([isBillable])

@@ -371,6 +371,7 @@ export function tasksToCalendarEvents(
   tasks: Array<{
     id: string;
     title: string;
+    scheduledStart: Date | null;
     dueDate: Date | null;
     estimatedTime: number | null;
     status: string;
@@ -386,9 +387,11 @@ export function tasksToCalendarEvents(
   }>
 ): CalendarEvent[] {
   return tasks
-    .filter((task) => task.dueDate !== null)
+    .filter((task) => task.scheduledStart !== null || task.dueDate !== null)
     .map((task) => {
-      const start = new Date(task.dueDate!);
+      // Use scheduledStart if available, otherwise fall back to dueDate
+      const eventTime = task.scheduledStart ?? task.dueDate;
+      const start = new Date(eventTime!);
       // Default duration: estimated time or 1 hour
       const durationHours = task.estimatedTime
         ? task.estimatedTime / 3600

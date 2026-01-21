@@ -28,6 +28,7 @@ const defaultBillingFields = {
   currency: "USD",
   billingStatus: "pending" as const,
   googleEventId: null,
+  scheduledStart: null,
 };
 
 describe("taskRouter", () => {
@@ -394,6 +395,7 @@ describe("taskRouter", () => {
         currency: "USD",
         billingStatus: "pending" as const,
         googleEventId: null,
+        scheduledStart: null,
         project: mockProject,
       };
 
@@ -555,6 +557,7 @@ describe("taskRouter", () => {
         currency: "EUR",
         billingStatus: "pending" as const,
         googleEventId: null,
+        scheduledStart: null,
         project: mockProject,
       };
 
@@ -592,6 +595,7 @@ describe("taskRouter", () => {
         currency: "USD",
         billingStatus: "pending" as const,
         googleEventId: null,
+        scheduledStart: null,
         project: mockProject,
       };
 
@@ -684,11 +688,12 @@ describe("taskRouter", () => {
   describe("deleteMany", () => {
     it("bulk deletes multiple tasks", async () => {
       // Mock findMany to return tasks (used for getting googleEventIds)
+      // Using type assertion since we only need googleEventId for this test
       prismaMock.task.findMany.mockResolvedValue([
         { googleEventId: null },
         { googleEventId: null },
         { googleEventId: null },
-      ]);
+      ] as never);
       prismaMock.task.deleteMany.mockResolvedValue({ count: 3 });
 
       const caller = createTestCaller();

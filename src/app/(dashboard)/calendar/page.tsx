@@ -236,7 +236,7 @@ export default function CalendarPage() {
           if (!open) setNewTaskDate(null);
         }}
         task={null}
-        defaultDueDate={newTaskDate ?? undefined}
+        defaultScheduledStart={newTaskDate ?? undefined}
       />
     </>
   );
