@@ -55,10 +55,10 @@ function LoginForm() {
     setError(null);
 
     const supabase = createClient();
-    // Don't specify redirectTo - let Supabase use Site URL setting
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
+        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback`,
         queryParams: {
           access_type: "offline",
           prompt: "consent",
