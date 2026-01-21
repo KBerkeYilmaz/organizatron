@@ -2,6 +2,9 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export default async function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  console.log("[Proxy] Running for:", pathname);
+
   // Check if env vars are available
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -10,9 +13,13 @@ export default async function proxy(request: NextRequest) {
     console.error("[Proxy] Missing Supabase env vars:", {
       hasUrl: !!supabaseUrl,
       hasKey: !!supabaseAnonKey,
+      pathname,
     });
-    // Allow request through if env vars missing (fail open for debugging)
-    return NextResponse.next({ request });
+    // Fail closed - redirect to login if env vars missing
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("error", "config_error");
+    return NextResponse.redirect(url);
   }
 
   let supabaseResponse = NextResponse.next({
