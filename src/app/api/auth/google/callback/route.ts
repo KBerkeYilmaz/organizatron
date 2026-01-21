@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "~/env";
 import { db } from "~/server/db";
+import { auth } from "~/lib/auth";
+import { headers } from "next/headers";
 
 interface TokenResponse {
   access_token: string;
@@ -74,18 +76,19 @@ export async function GET(request: NextRequest) {
 
     const userInfo = (await userInfoResponse.json()) as UserInfo;
 
-    // Find or create user (simplified - single user for now)
-    // In a multi-user app, you'd match this to the logged-in user
-    let user = await db.user.findFirst();
+    // Get the logged-in user from Better Auth session
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
 
-    if (!user) {
-      user = await db.user.create({
-        data: {
-          email: userInfo.email,
-          name: userInfo.name,
-        },
-      });
+    if (!session?.user) {
+      console.error("[GoogleOAuth] No authenticated user");
+      return NextResponse.redirect(
+        `${appUrl}/settings?error=not_authenticated`
+      );
     }
+
+    const user = session.user;
 
     // Upsert Google account
     await db.googleAccount.upsert({
