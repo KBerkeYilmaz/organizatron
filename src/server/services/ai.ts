@@ -27,7 +27,8 @@ interface SimilarTask {
  * - Project analysis
  */
 export class AIService {
-  private model = google("gemini-1.5-flash");
+  // Using Gemini 2.0 Flash - note: gemini-1.5-flash was retired
+  private model = google("gemini-2.0-flash");
 
   /**
    * Check if AI service is available (API key configured)
