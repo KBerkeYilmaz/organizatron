@@ -56,8 +56,8 @@ Your role:
 Be concise, practical, and encouraging.`;
 
     const result = streamText({
-      // Using Gemini 2.0 Flash - note: gemini-1.5-flash was retired
-      model: google("gemini-2.0-flash"),
+      // Using Gemini 2.5 Flash - best price-performance ratio
+      model: google("gemini-2.5-flash"),
       system: systemPrompt,
       messages,
     });
