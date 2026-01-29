@@ -16,6 +16,13 @@ import {
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { ScrollArea } from "~/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
 import { Textarea } from "~/components/ui/textarea";
 import { api } from "~/trpc/react";
 import type { AIBreakdownTask, AITaskBreakdown } from "~/lib/ai-types";
@@ -23,7 +30,7 @@ import type { AIBreakdownTask, AITaskBreakdown } from "~/lib/ai-types";
 interface AIGoalBreakdownProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  projectId: string;
+  projectId?: string;
   onTasksCreated?: () => void;
 }
 
@@ -93,13 +100,21 @@ function TaskCard({
 export function AIGoalBreakdown({
   open,
   onOpenChange,
-  projectId,
+  projectId: initialProjectId,
   onTasksCreated,
 }: AIGoalBreakdownProps) {
   const [goal, setGoal] = useState("");
   const [context, setContext] = useState("");
   const [breakdown, setBreakdown] = useState<AITaskBreakdown | null>(null);
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectId ?? "");
+
+  // Fetch projects if no projectId provided
+  const { data: projects } = api.project.getAll.useQuery(undefined, {
+    enabled: open && !initialProjectId,
+  });
+
+  const projectId = initialProjectId ?? selectedProjectId;
 
   const breakdownMutation = api.ai.breakdownGoal.useMutation({
     onSuccess: (result) => {
@@ -160,6 +175,9 @@ export function AIGoalBreakdown({
     setContext("");
     setBreakdown(null);
     setSelectedTasks(new Set());
+    if (!initialProjectId) {
+      setSelectedProjectId("");
+    }
   };
 
   const selectedCount = selectedTasks.size;
@@ -189,6 +207,28 @@ export function AIGoalBreakdown({
 
         {!breakdown ? (
           <div className="space-y-4 py-4">
+            {/* Project selector when no projectId provided */}
+            {!initialProjectId && (
+              <div className="space-y-2">
+                <Label htmlFor="project">Add tasks to project</Label>
+                <Select
+                  value={selectedProjectId}
+                  onValueChange={setSelectedProjectId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a project..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects?.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="goal">What do you want to achieve?</Label>
               <Input
@@ -264,7 +304,7 @@ export function AIGoalBreakdown({
           {!breakdown ? (
             <Button
               onClick={handleBreakdown}
-              disabled={!goal.trim() || breakdownMutation.isPending}
+              disabled={!goal.trim() || !projectId || breakdownMutation.isPending}
             >
               {breakdownMutation.isPending ? (
                 <>

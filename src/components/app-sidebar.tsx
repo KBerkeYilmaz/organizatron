@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Calendar,
   ChevronUp,
@@ -8,6 +9,7 @@ import {
   ListTodo,
   LogOut,
   Settings,
+  Sparkles,
   Timer,
   User,
 } from "lucide-react";
@@ -36,6 +38,8 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from "~/components/ui/sidebar";
+import { AIAssistantDrawer } from "~/components/ai-assistant-drawer";
+import { AIGoalBreakdown } from "~/components/ai-goal-breakdown";
 
 const navigation = [
   {
@@ -69,6 +73,8 @@ export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { data: session } = useSession();
+  const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
+  const [goalBreakdownOpen, setGoalBreakdownOpen] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -141,6 +147,16 @@ export function AppSidebar() {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip="AI Assistant"
+              onClick={() => setAiDrawerOpen(true)}
+              className="text-primary hover:text-primary"
+            >
+              <Sparkles />
+              <span>AI Assistant</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Settings">
               <Link href="/settings">
                 <Settings />
@@ -195,6 +211,19 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+      <AIAssistantDrawer
+        open={aiDrawerOpen}
+        onOpenChange={setAiDrawerOpen}
+        onGoalBreakdown={() => {
+          setAiDrawerOpen(false);
+          setGoalBreakdownOpen(true);
+        }}
+      />
+
+      <AIGoalBreakdown
+        open={goalBreakdownOpen}
+        onOpenChange={setGoalBreakdownOpen}
+      />
     </Sidebar>
   );
 }
