@@ -192,7 +192,7 @@ describe("AIService", () => {
 
       expect(result).toEqual(mockBreakdown);
       expect(result?.tasks).toHaveLength(2);
-      expect(result?.tasks[0].learningResources).toBeDefined();
+      expect(result?.tasks[0]!.learningResources).toBeDefined();
     });
 
     it("includes optional context in prompt", async () => {
@@ -390,8 +390,8 @@ describe("AIService", () => {
 
       expect(result).toBeDefined();
       expect(result?.tasks).toHaveLength(3);
-      expect(result?.tasks[0].suggestedOrder).toBe(1);
-      expect(result?.tasks[0].enables).toContain("task-2");
+      expect(result?.tasks[0]!.suggestedOrder).toBe(1);
+      expect(result?.tasks[0]!.enables).toContain("task-2");
       expect(result?.schedule).toHaveLength(3);
       expect(result?.summary).toContain("database");
     });
@@ -415,10 +415,10 @@ describe("AIService", () => {
       });
 
       const service = new AIService();
-      const result = await service.analyzeProject([mockTasks[0]]);
+      const result = await service.analyzeProject([mockTasks[0]!]);
 
-      expect(result?.schedule[0].suggestedStart).toBeInstanceOf(Date);
-      expect(result?.schedule[0].suggestedEnd).toBeInstanceOf(Date);
+      expect(result?.schedule[0]!.suggestedStart).toBeInstanceOf(Date);
+      expect(result?.schedule[0]!.suggestedEnd).toBeInstanceOf(Date);
     });
 
     it("returns null for empty task list", async () => {

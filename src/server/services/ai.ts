@@ -237,7 +237,7 @@ Respond with JSON only (no markdown):
         model: this.model,
         prompt: `Analyze these tasks and suggest the optimal execution order.
 
-Project: ${tasks[0].projectName}
+Project: ${tasks[0]!.projectName}
 Tasks:
 ${tasksContext}
 
