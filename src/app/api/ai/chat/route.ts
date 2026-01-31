@@ -1,11 +1,11 @@
-import { streamText } from "ai";
+import { streamText, convertToModelMessages, smoothStream, type UIMessage } from "ai";
 import { google } from "@ai-sdk/google";
 import { env } from "~/env";
 
 export const runtime = "nodejs";
 
 interface ChatRequest {
-  messages: { role: "user" | "assistant"; content: string }[];
+  messages: UIMessage[];
   taskContext?: {
     id: string;
     title: string;
@@ -59,10 +59,15 @@ Be concise, practical, and encouraging.`;
       // Using Gemini 2.5 Flash - best price-performance ratio
       model: google("gemini-2.5-flash"),
       system: systemPrompt,
-      messages,
+      messages: await convertToModelMessages(messages),
+      // Smooth out streaming for better UX - natural typing effect
+      experimental_transform: smoothStream({
+        delayInMs: 25,
+        chunking: "word",
+      }),
     });
 
-    return result.toTextStreamResponse();
+    return result.toUIMessageStreamResponse();
   } catch (error) {
     console.error("[AI Chat] Error:", error);
     return new Response(
