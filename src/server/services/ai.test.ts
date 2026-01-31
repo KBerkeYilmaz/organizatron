@@ -11,6 +11,19 @@ vi.mock("@ai-sdk/google", () => ({
   google: vi.fn(() => "mocked-google-model"),
 }));
 
+// Mock the @ai-sdk/groq package
+vi.mock("@ai-sdk/groq", () => ({
+  createGroq: vi.fn(() => vi.fn(() => "mocked-groq-model")),
+}));
+
+// Mock env to ensure AI is available
+vi.mock("~/env", () => ({
+  env: {
+    GROQ_API_KEY: "test-groq-key",
+    GOOGLE_GENERATIVE_AI_API_KEY: "test-google-key",
+  },
+}));
+
 // Import after mocking
 import { generateText } from "ai";
 import { AIService, aiService } from "./ai";

@@ -1,8 +1,22 @@
 import { streamText, convertToModelMessages, smoothStream, type UIMessage } from "ai";
 import { google } from "@ai-sdk/google";
+import { createGroq } from "@ai-sdk/groq";
 import { env } from "~/env";
 
 export const runtime = "nodejs";
+
+// Groq with Llama 3.3 70B - excellent free tier limits (30 RPM, 14,400 RPD)
+const groq = env.GROQ_API_KEY ? createGroq({ apiKey: env.GROQ_API_KEY }) : null;
+
+// Fallback to Gemini if Groq not configured
+const gemini = env.GOOGLE_GENERATIVE_AI_API_KEY ? google("gemini-2.5-flash") : null;
+
+// Get the best available model
+function getModel() {
+  if (groq) return groq("llama-3.3-70b-versatile");
+  if (gemini) return gemini;
+  return null;
+}
 
 interface ChatRequest {
   messages: UIMessage[];
@@ -17,7 +31,8 @@ interface ChatRequest {
 }
 
 export async function POST(req: Request) {
-  if (!env.GOOGLE_GENERATIVE_AI_API_KEY) {
+  const model = getModel();
+  if (!model) {
     return new Response(JSON.stringify({ error: "AI not configured" }), {
       status: 503,
       headers: { "Content-Type": "application/json" },
@@ -56,8 +71,7 @@ Your role:
 Be concise, practical, and encouraging.`;
 
     const result = streamText({
-      // Using Gemini 2.5 Flash - best price-performance ratio
-      model: google("gemini-2.5-flash"),
+      model,
       system: systemPrompt,
       messages: await convertToModelMessages(messages),
       // Smooth out streaming for better UX - natural typing effect

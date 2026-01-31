@@ -1,9 +1,11 @@
 import { generateText } from "ai";
 import { google } from "@ai-sdk/google";
+import { createGroq } from "@ai-sdk/groq";
 import { env } from "~/env";
 import type {
   AITimeEstimate,
   AITagSuggestion,
+  AITaskAssist,
   AITaskBreakdown,
   AITaskGuidance,
   AIProjectPlan,
@@ -29,22 +31,129 @@ function stripMarkdownCodeBlock(text: string): string {
 /**
  * AI Service for intelligent task management
  *
- * Uses Vercel AI SDK with Google Gemini for:
+ * Uses Vercel AI SDK with Groq (Llama 3.3 70B) as primary provider,
+ * falling back to Google Gemini if Groq is not configured.
+ *
+ * Features:
  * - Time estimation
  * - Tag suggestions
  * - Goal breakdown
  * - Task guidance
  * - Project analysis
+ *
+ * Groq rate limits (free tier): 30 RPM, 14,400 RPD - much better than Gemini!
  */
 export class AIService {
-  // Using Gemini 2.5 Flash - best price-performance ratio
-  private model = google("gemini-2.5-flash");
+  // Groq with Llama 3.3 70B - excellent free tier limits (30 RPM, 14,400 RPD)
+  private groq = env.GROQ_API_KEY
+    ? createGroq({ apiKey: env.GROQ_API_KEY })
+    : null;
+
+  // Fallback to Gemini 2.5 Flash if Groq not configured
+  private gemini = env.GOOGLE_GENERATIVE_AI_API_KEY
+    ? google("gemini-2.5-flash")
+    : null;
+
+  // Get the best available model
+  private get model() {
+    if (this.groq) {
+      return this.groq("llama-3.3-70b-versatile");
+    }
+    if (this.gemini) {
+      return this.gemini;
+    }
+    throw new Error("No AI provider configured");
+  }
 
   /**
-   * Check if AI service is available (API key configured)
+   * Check if AI service is available (at least one API key configured)
    */
   isAvailable(): boolean {
-    return !!env.GOOGLE_GENERATIVE_AI_API_KEY;
+    return !!env.GROQ_API_KEY || !!env.GOOGLE_GENERATIVE_AI_API_KEY;
+  }
+
+  /**
+   * Get the name of the active AI provider for debugging
+   */
+  getProviderName(): string {
+    if (this.groq) return "Groq (Llama 3.3 70B)";
+    if (this.gemini) return "Google Gemini 2.5 Flash";
+    return "None";
+  }
+
+  /**
+   * Combined task creation assist - estimates time AND suggests tags in ONE API call.
+   * This is critical for staying within rate limits.
+   * Uses generateText with JSON parsing (Llama 3.3 doesn't support structured outputs).
+   */
+  async assistTaskCreation(
+    title: string,
+    description?: string,
+    existingTags?: string[],
+    similarTasks?: SimilarTask[]
+  ): Promise<AITaskAssist | null> {
+    const startTime = Date.now();
+    console.log(`[AIService] assistTaskCreation - Starting for: "${title}"`);
+
+    try {
+      const similarTasksContext = similarTasks?.length
+        ? `\n\nSimilar completed tasks for time reference:\n${similarTasks
+            .map(
+              (t) =>
+                `- "${t.title}": estimated ${t.estimatedMinutes}min, actual ${t.actualMinutes ?? "unknown"}min`
+            )
+            .join("\n")}`
+        : "";
+
+      const existingTagsContext = existingTags?.length
+        ? `\n\nExisting tags in this project (prefer reusing these): ${existingTags.join(", ")}`
+        : "";
+
+      console.log(`[AIService] assistTaskCreation - Calling ${this.getProviderName()} (single combined call)...`);
+
+      const result = await generateText({
+        model: this.model,
+        prompt: `Analyze this task and provide BOTH a time estimate AND relevant tags.
+
+Task: "${title}"
+${description ? `Description: ${description}` : ""}
+${similarTasksContext}
+${existingTagsContext}
+
+For time estimation:
+- Consider task complexity, dependencies, and similar past tasks
+- Be realistic - most coding tasks take longer than expected
+
+For tags:
+- Suggest 2-5 short, lowercase tags (use hyphens, no spaces)
+- Prefer reusing existing project tags when they fit
+- Tags should help with filtering/organization
+
+Respond with JSON only (no markdown):
+{
+  "timeEstimate": {
+    "estimatedMinutes": <number>,
+    "confidence": "low" | "medium" | "high",
+    "reasoning": "<brief explanation>"
+  },
+  "tagSuggestion": {
+    "tags": ["tag1", "tag2"],
+    "reasoning": "<brief explanation>"
+  }
+}`,
+      });
+
+      const parsed = JSON.parse(stripMarkdownCodeBlock(result.text)) as AITaskAssist;
+
+      console.log(
+        `[AIService] assistTaskCreation - Success! ${parsed.timeEstimate.estimatedMinutes}min, tags: [${parsed.tagSuggestion.tags.join(", ")}] (${Date.now() - startTime}ms)`
+      );
+
+      return parsed;
+    } catch (error) {
+      console.error(`[AIService] assistTaskCreation - Error (${Date.now() - startTime}ms):`, error);
+      return null;
+    }
   }
 
   /**
@@ -62,7 +171,7 @@ export class AIService {
     }
 
     try {
-      console.log(`[AIService] estimateTime - Calling Gemini API...`);
+      console.log(`[AIService] estimateTime - Calling ${this.getProviderName()}...`);
       const similarTasksContext = similarTasks?.length
         ? `\n\nSimilar completed tasks for reference:\n${similarTasks
             .map(
@@ -112,7 +221,7 @@ Respond with JSON only (no markdown):
     }
 
     try {
-      console.log(`[AIService] suggestTags - Calling Gemini API...`);
+      console.log(`[AIService] suggestTags - Calling ${this.getProviderName()}...`);
       const existingTagsContext = existingTags?.length
         ? `\n\nExisting tags in this project: ${existingTags.join(", ")}`
         : "";
@@ -161,7 +270,7 @@ Respond with JSON only (no markdown):
         ? `\n\nAdditional context: ${context}`
         : "";
 
-      console.log(`[AIService] breakdownGoal - Calling Gemini API...`);
+      console.log(`[AIService] breakdownGoal - Calling ${this.getProviderName()}...`);
       const result = await generateText({
         model: this.model,
         prompt: `Break down this goal into actionable tasks with time estimates.
@@ -220,7 +329,7 @@ Respond with JSON only (no markdown):
     console.log(`[AIService] getTaskGuidance - Project: ${task.projectName}, Priority: ${task.priority}`);
 
     try {
-      console.log(`[AIService] getTaskGuidance - Calling Gemini API...`);
+      console.log(`[AIService] getTaskGuidance - Calling ${this.getProviderName()}...`);
       const result = await generateText({
         model: this.model,
         prompt: `Provide guidance for completing this task.
@@ -284,7 +393,7 @@ Respond with JSON only (no markdown):
     console.log(`[AIService] analyzeProject - Project: ${tasks[0]?.projectName}`);
 
     try {
-      console.log(`[AIService] analyzeProject - Calling Gemini API...`);
+      console.log(`[AIService] analyzeProject - Calling ${this.getProviderName()}...`);
       const tasksContext = tasks
         .map(
           (t) =>
