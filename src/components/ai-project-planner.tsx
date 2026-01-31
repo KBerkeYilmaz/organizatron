@@ -9,6 +9,7 @@ import {
   Clock,
   Loader2,
   Sparkles,
+  Wand2,
 } from "lucide-react";
 
 import { Badge } from "~/components/ui/badge";
@@ -31,6 +32,7 @@ import {
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { Switch } from "~/components/ui/switch";
 import { Label } from "~/components/ui/label";
+import { Separator } from "~/components/ui/separator";
 import { api } from "~/trpc/react";
 import type { AIProjectPlan, AITaskAnalysis, AIScheduleSlot } from "~/lib/ai-types";
 
@@ -42,11 +44,25 @@ interface AIProjectPlannerProps {
   onScheduleApplied?: () => void;
 }
 
+interface ToolAction {
+  tool: string;
+  result: unknown;
+}
+
 function formatMinutes(minutes: number): string {
   if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
+// Helper to format action results for display
+function formatActionResult(action: ToolAction): string {
+  const result = action.result as Record<string, unknown>;
+  if (result.success && result.message) {
+    return result.message as string;
+  }
+  return JSON.stringify(result);
 }
 
 interface TaskPlanCardProps {
@@ -133,15 +149,26 @@ export function AIProjectPlanner({
   onScheduleApplied,
 }: AIProjectPlannerProps) {
   const [plan, setPlan] = useState<AIProjectPlan | null>(null);
+  const [actions, setActions] = useState<ToolAction[]>([]);
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
   const [syncToCalendar, setSyncToCalendar] = useState(true);
 
-  const analyzeMutation = api.ai.analyzeProject.useMutation({
+  const utils = api.useUtils();
+
+  // Use the agentic endpoint with tool calling
+  const analyzeMutation = api.ai.getAgenticProjectPlan.useMutation({
     onSuccess: (result) => {
       if (result.success && result.data) {
-        setPlan(result.data);
+        setPlan(result.data.plan);
+        setActions(result.data.actions);
         // Select all tasks by default
-        setSelectedTasks(new Set(result.data.tasks.map((t) => t.taskId)));
+        if (result.data.plan) {
+          setSelectedTasks(new Set(result.data.plan.tasks.map((t) => t.taskId)));
+        }
+        // If AI took actions, invalidate task list to show updates
+        if (result.data.actions.length > 0) {
+          void utils.task.getAll.invalidate();
+        }
       }
     },
   });
@@ -197,6 +224,7 @@ export function AIProjectPlanner({
 
   const handleReset = () => {
     setPlan(null);
+    setActions([]);
     setSelectedTasks(new Set());
   };
 
@@ -214,14 +242,14 @@ export function AIProjectPlanner({
         onOpenChange(isOpen);
       }}
     >
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-[700px] max-h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
             AI Project Planner
           </DialogTitle>
           <DialogDescription>
-            Analyze tasks in &quot;{projectName}&quot; and get an optimal
+            Analyze tasks in &quot;{projectName}&quot; and let AI optimize the
             execution order with scheduling suggestions.
           </DialogDescription>
         </DialogHeader>
@@ -232,7 +260,7 @@ export function AIProjectPlanner({
               <>
                 <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
                 <p className="text-muted-foreground">
-                  Analyzing project tasks...
+                  Analyzing project and taking actions...
                 </p>
               </>
             ) : analyzeMutation.error ? (
@@ -245,9 +273,10 @@ export function AIProjectPlanner({
             ) : (
               <>
                 <Sparkles className="h-12 w-12 text-muted-foreground/50 mb-4" />
-                <p className="text-muted-foreground mb-6 text-center">
+                <p className="text-muted-foreground mb-6 text-center max-w-md">
                   AI will analyze your tasks to suggest the best execution order
-                  based on dependencies, priorities, and deadlines.
+                  based on dependencies, priorities, and deadlines. It may also
+                  update estimates, priorities, and create subtasks as needed.
                 </p>
                 <Button
                   size="lg"
@@ -266,48 +295,92 @@ export function AIProjectPlanner({
             )}
           </div>
         ) : (
-          <div className="flex-1 min-h-0 py-4">
-            {/* Summary */}
-            <Card className="mb-4">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Analysis Summary</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">{plan.summary}</p>
-                <div className="flex items-center gap-4 mt-2 text-sm">
-                  <Badge variant="secondary">
-                    {plan.tasks.length} tasks
-                  </Badge>
-                  <Badge variant="secondary">
-                    <Clock className="h-3 w-3 mr-1" />
-                    {formatMinutes(plan.totalEstimatedTime)} total
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
+          <div className="flex-1 min-h-0 flex flex-col py-4">
+            {/* Scrollable content area */}
+            <ScrollArea className="flex-1 pr-4">
+              <div className="space-y-4">
+                {/* Actions taken by AI */}
+                {actions.length > 0 && (
+                  <>
+                    <Card className="border-purple-200 dark:border-purple-800">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Wand2 className="h-4 w-4 text-purple-500" />
+                          Actions Taken
+                          <Badge variant="secondary" className="ml-auto">
+                            {actions.length} action{actions.length > 1 ? "s" : ""}
+                          </Badge>
+                        </CardTitle>
+                        <CardDescription className="text-xs">
+                          AI made the following changes to optimize your project
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          {actions.map((action, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-start gap-2 text-sm rounded-md bg-green-50 dark:bg-green-950/20 p-2"
+                            >
+                              <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <span className="font-medium capitalize">
+                                  {action.tool.replace(/([A-Z])/g, " $1").trim()}
+                                </span>
+                                <p className="text-muted-foreground text-xs mt-0.5">
+                                  {formatActionResult(action)}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Separator />
+                  </>
+                )}
 
-            {/* Task list */}
-            <ScrollArea className="h-[350px] pr-4">
-              <div className="space-y-3">
-                {plan.tasks
-                  .sort((a, b) => a.suggestedOrder - b.suggestedOrder)
-                  .map((task) => (
-                    <TaskPlanCard
-                      key={task.taskId}
-                      task={task}
-                      schedule={plan.schedule.find(
-                        (s) => s.taskId === task.taskId
-                      )}
-                      taskTitle={taskTitlesMap[task.taskId] ?? "Unknown task"}
-                      isSelected={selectedTasks.has(task.taskId)}
-                      onToggle={() => handleToggleTask(task.taskId)}
-                    />
-                  ))}
+                {/* Summary */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Analysis Summary</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">{plan.summary}</p>
+                    <div className="flex items-center gap-4 mt-2 text-sm">
+                      <Badge variant="secondary">
+                        {plan.tasks.length} tasks
+                      </Badge>
+                      <Badge variant="secondary">
+                        <Clock className="h-3 w-3 mr-1" />
+                        {formatMinutes(plan.totalEstimatedTime)} total
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Task list */}
+                <div className="space-y-3">
+                  {plan.tasks
+                    .sort((a, b) => a.suggestedOrder - b.suggestedOrder)
+                    .map((task) => (
+                      <TaskPlanCard
+                        key={task.taskId}
+                        task={task}
+                        schedule={plan.schedule.find(
+                          (s) => s.taskId === task.taskId
+                        )}
+                        taskTitle={taskTitlesMap[task.taskId] ?? "Unknown task"}
+                        isSelected={selectedTasks.has(task.taskId)}
+                        onToggle={() => handleToggleTask(task.taskId)}
+                      />
+                    ))}
+                </div>
               </div>
             </ScrollArea>
 
-            {/* Footer info */}
-            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+            {/* Footer info - stays fixed at bottom */}
+            <div className="flex items-center justify-between mt-4 pt-4 border-t shrink-0">
               <div className="text-sm text-muted-foreground">
                 {selectedCount} of {plan.tasks.length} tasks selected
                 {selectedCount > 0 && (

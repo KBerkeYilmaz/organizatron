@@ -1,12 +1,13 @@
 "use client";
 
-import { CheckCircle2, Circle, FolderKanban, Info, ListTodo, Pencil, Plus } from "lucide-react";
+import { CheckCircle2, Circle, FolderKanban, Info, ListTodo, Pencil, Plus, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { PageHeader } from "~/components/page-header";
 import { ProjectDialog } from "~/components/project-dialog";
 import { ProjectsKanban } from "~/components/projects-kanban";
 import { TaskDialog } from "~/components/task-dialog";
+import { AIProjectPlanner } from "~/components/ai-project-planner";
 import type { KanbanTask } from "~/components/task-kanban-card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -50,6 +51,7 @@ export default function ProjectsPage() {
   const [editingTask, setEditingTask] = useState<KanbanTask | null>(null);
   const [hasAutoSelected, setHasAutoSelected] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [plannerOpen, setPlannerOpen] = useState(false);
 
   // Queries
   const { data: clients, isLoading: clientsLoading } = api.clients.getAll.useQuery();
@@ -284,25 +286,39 @@ export default function ProjectsPage() {
             )}
           </div>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7"
-            onClick={() => {
-              setEditingProject({
-                id: selectedProject.id,
-                name: selectedProject.name,
-                description: selectedProject.description ?? null,
-                status: selectedProject.status as ProjectStatus,
-                clientId: selectedProject.clientId,
-                client: selectedClient!,
-              });
-              setProjectDialogOpen(true);
-            }}
-          >
-            <Pencil className="mr-1 h-3 w-3" />
-            Edit
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* AI Project Planner button */}
+            {taskStats && taskStats.todo + taskStats.inProgress > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7"
+                onClick={() => setPlannerOpen(true)}
+              >
+                <Sparkles className="mr-1 h-3 w-3" />
+                AI Planner
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7"
+              onClick={() => {
+                setEditingProject({
+                  id: selectedProject.id,
+                  name: selectedProject.name,
+                  description: selectedProject.description ?? null,
+                  status: selectedProject.status as ProjectStatus,
+                  clientId: selectedProject.clientId,
+                  client: selectedClient!,
+                });
+                setProjectDialogOpen(true);
+              }}
+            >
+              <Pencil className="mr-1 h-3 w-3" />
+              Edit
+            </Button>
+          </div>
         </div>
       )}
 
@@ -356,6 +372,16 @@ export default function ProjectsPage() {
         task={editingTask}
         defaultProjectId={projectId || undefined}
       />
+
+      {/* AI Project Planner Dialog */}
+      {selectedProject && (
+        <AIProjectPlanner
+          open={plannerOpen}
+          onOpenChange={setPlannerOpen}
+          projectId={selectedProject.id}
+          projectName={selectedProject.name}
+        />
+      )}
     </>
   );
 }
