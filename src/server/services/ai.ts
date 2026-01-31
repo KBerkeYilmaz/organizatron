@@ -1,4 +1,4 @@
-import { generateText } from "ai";
+import { generateText, stepCountIs } from "ai";
 import { google } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { env } from "~/env";
@@ -11,6 +11,7 @@ import type {
   AIProjectPlan,
   TaskContext,
 } from "~/lib/ai-types";
+import { taskGuidanceTools, projectPlannerTools } from "./ai-tools";
 
 interface SimilarTask {
   title: string;
@@ -462,6 +463,256 @@ Respond with JSON only (no markdown):
     } catch (error) {
       console.error(`[AIService] analyzeProject - Error (${Date.now() - startTime}ms):`, error);
       return null;
+    }
+  }
+
+  /**
+   * Agentic task guidance - AI can take actions (create subtasks, update estimates, add tags)
+   * Uses tool calling to let the AI autonomously help with task management.
+   */
+  async getAgenticTaskGuidance(
+    task: TaskContext,
+    maxSteps = 5
+  ): Promise<{
+    guidance: AITaskGuidance | null;
+    actions: Array<{ tool: string; result: unknown }>;
+  }> {
+    const startTime = Date.now();
+    console.log(`[AIService] getAgenticTaskGuidance - Starting for task: "${task.title}"`);
+    console.log(`[AIService] getAgenticTaskGuidance - Max steps: ${maxSteps}`);
+
+    const actions: Array<{ tool: string; result: unknown }> = [];
+
+    try {
+      console.log(`[AIService] getAgenticTaskGuidance - Calling ${this.getProviderName()} with tools...`);
+
+      const result = await generateText({
+        model: this.model,
+        tools: taskGuidanceTools,
+        stopWhen: stepCountIs(maxSteps),
+        prompt: `You are a productivity coach helping with task management. Analyze this task and help the user.
+
+Task ID: ${task.id}
+Task: "${task.title}"
+${task.description ? `Description: ${task.description}` : ""}
+Project: ${task.projectName}
+Priority: ${task.priority}
+Tags: ${task.tags.join(", ") || "none"}
+${task.dueDate ? `Due: ${task.dueDate.toISOString()}` : ""}
+${task.estimatedTime ? `Estimated time: ${task.estimatedTime / 60} minutes` : "No time estimate set"}
+
+You have access to tools to help the user:
+- createSubtasks: Break down this task into smaller subtasks if it's complex
+- updateEstimate: Update the time estimate if you think it's inaccurate
+- addTags: Add relevant tags for better organization
+- webSearch: Search for documentation, tutorials, and best practices
+
+CRITICAL RULES FOR SUBTASKS:
+If you use createSubtasks, each subtask MUST be:
+1. SPECIFIC: Include the exact component, file, function, or feature being worked on
+2. ACTIONABLE: Use concrete verbs (implement, create, add, fix, write, configure, test)
+3. SELF-CONTAINED: Someone could work on it without needing to ask "what exactly?"
+
+GOOD subtask examples:
+- "Create AuthContext with login/logout/register methods"
+- "Add form validation to CheckoutForm using Zod schema"
+- "Write unit tests for useCart hook"
+- "Configure ESLint rules for import ordering"
+
+BAD subtask examples (NEVER create these):
+- "Write the code" ❌
+- "Implement the feature" ❌
+- "Handle edge cases" ❌
+- "Do testing" ❌
+- "Work on frontend" ❌
+
+IMPORTANT: Only create subtasks if the task genuinely benefits from breakdown. Simple tasks don't need subtasks.
+
+After using any tools (or deciding not to), provide your guidance as JSON:
+{
+  "taskId": "${task.id}",
+  "guidance": "<step-by-step approach for this task>",
+  "suggestedPrompts": ["<Claude Code prompt 1>", "<Claude Code prompt 2>"],
+  "learningResources": [
+    {
+      "title": "<resource name>",
+      "type": "article" | "video" | "course" | "documentation",
+      "url": "<optional url>",
+      "description": "<what you'll learn>"
+    }
+  ],
+  "breakdownSuggestion": {
+    "shouldBreakdown": <boolean - false if you already created subtasks>,
+    "suggestedSubtasks": ["<specific subtask 1>", "<specific subtask 2>"]
+  }
+}`,
+      });
+
+      // Collect tool call results from all steps
+      for (const step of result.steps) {
+        if (step.toolResults) {
+          for (const toolResult of step.toolResults) {
+            actions.push({
+              tool: toolResult.toolName,
+              result: toolResult.output,
+            });
+            console.log(`[AIService] getAgenticTaskGuidance - Tool called: ${toolResult.toolName}`);
+          }
+        }
+      }
+
+      // Parse the final text response as guidance
+      let guidance: AITaskGuidance | null = null;
+      try {
+        guidance = JSON.parse(stripMarkdownCodeBlock(result.text)) as AITaskGuidance;
+      } catch {
+        console.log(`[AIService] getAgenticTaskGuidance - Could not parse guidance JSON, using raw text`);
+        // If JSON parsing fails, create a basic guidance object
+        guidance = {
+          taskId: task.id,
+          guidance: result.text,
+          suggestedPrompts: [],
+          learningResources: [],
+          breakdownSuggestion: { shouldBreakdown: false, suggestedSubtasks: [] },
+        };
+      }
+
+      console.log(`[AIService] getAgenticTaskGuidance - Success! ${actions.length} actions taken (${Date.now() - startTime}ms)`);
+      return { guidance, actions };
+    } catch (error) {
+      console.error(`[AIService] getAgenticTaskGuidance - Error (${Date.now() - startTime}ms):`, error);
+      return { guidance: null, actions };
+    }
+  }
+
+  /**
+   * Agentic project planner - AI can reorder tasks, schedule them, update priorities
+   * Uses tool calling for autonomous project planning.
+   */
+  async getAgenticProjectPlan(
+    tasks: TaskContext[],
+    maxSteps = 10
+  ): Promise<{
+    plan: AIProjectPlan | null;
+    actions: Array<{ tool: string; result: unknown }>;
+  }> {
+    const startTime = Date.now();
+    console.log(`[AIService] getAgenticProjectPlan - Starting for ${tasks.length} tasks`);
+
+    if (tasks.length === 0) {
+      console.log(`[AIService] getAgenticProjectPlan - No tasks to plan`);
+      return { plan: null, actions: [] };
+    }
+
+    const actions: Array<{ tool: string; result: unknown }> = [];
+
+    try {
+      console.log(`[AIService] getAgenticProjectPlan - Calling ${this.getProviderName()} with tools...`);
+
+      const tasksContext = tasks
+        .map(
+          (t) =>
+            `- ID: ${t.id}, "${t.title}", Priority: ${t.priority}, Due: ${t.dueDate?.toISOString() ?? "none"}, Est: ${t.estimatedTime ? `${t.estimatedTime / 60}min` : "unknown"}, Tags: [${t.tags.join(", ")}]`
+        )
+        .join("\n");
+
+      const result = await generateText({
+        model: this.model,
+        tools: projectPlannerTools,
+        stopWhen: stepCountIs(maxSteps),
+        prompt: `You are a project planning assistant. Analyze these tasks and create an optimal execution plan.
+
+Project: ${tasks[0]!.projectName}
+Tasks:
+${tasksContext}
+
+Today: ${new Date().toISOString()}
+Working hours: 9:00 - 17:00
+
+You have access to tools to help organize this project:
+- createSubtasks: Break down complex tasks into smaller pieces
+- updateEstimate: Fix inaccurate time estimates
+- addTags: Add tags for better organization
+- updatePriority: Adjust priorities based on dependencies and deadlines
+- scheduleTask: Schedule tasks for specific times
+- reorderTasks: Set execution order for tasks
+- webSearch: Search for documentation and best practices when needed
+
+CRITICAL RULES FOR SUBTASKS:
+If you use createSubtasks, each subtask MUST be:
+1. SPECIFIC: Include the exact component, file, function, or feature
+2. ACTIONABLE: Use concrete verbs (implement, create, add, fix, write, configure, test)
+3. SELF-CONTAINED: Clear enough that someone could start immediately
+
+GOOD: "Add email validation to RegistrationForm component"
+BAD: "Implement validation" ❌
+
+IMPORTANT: Use tools strategically to improve the project plan. Consider:
+- Which tasks block other tasks?
+- Are there missing time estimates?
+- Do priorities reflect the actual urgency?
+- Should any complex tasks be broken down into SPECIFIC subtasks?
+
+After using tools, provide your analysis as JSON:
+{
+  "tasks": [
+    {
+      "taskId": "<id>",
+      "suggestedOrder": <number 1 = first>,
+      "estimatedMinutes": <number>,
+      "blockedBy": ["<taskId>"],
+      "enables": ["<taskId>"],
+      "guidance": "<why this order>"
+    }
+  ],
+  "schedule": [
+    {
+      "taskId": "<id>",
+      "suggestedStart": "<ISO date string>",
+      "suggestedEnd": "<ISO date string>"
+    }
+  ],
+  "summary": "<overall scheduling strategy>",
+  "totalEstimatedTime": <total minutes>
+}`,
+      });
+
+      // Collect tool call results from all steps
+      for (const step of result.steps) {
+        if (step.toolResults) {
+          for (const toolResult of step.toolResults) {
+            actions.push({
+              tool: toolResult.toolName,
+              result: toolResult.output,
+            });
+            console.log(`[AIService] getAgenticProjectPlan - Tool called: ${toolResult.toolName}`);
+          }
+        }
+      }
+
+      // Parse the final text response as plan
+      let plan: AIProjectPlan | null = null;
+      try {
+        const parsed = JSON.parse(stripMarkdownCodeBlock(result.text));
+        plan = {
+          ...parsed,
+          schedule: parsed.schedule?.map(
+            (s: { taskId: string; suggestedStart: string; suggestedEnd: string }) => ({
+              taskId: s.taskId,
+              suggestedStart: new Date(s.suggestedStart),
+              suggestedEnd: new Date(s.suggestedEnd),
+            })
+          ) ?? [],
+        } as AIProjectPlan;
+      } catch {
+        console.log(`[AIService] getAgenticProjectPlan - Could not parse plan JSON`);
+      }
+
+      console.log(`[AIService] getAgenticProjectPlan - Success! ${actions.length} actions taken (${Date.now() - startTime}ms)`);
+      return { plan, actions };
+    } catch (error) {
+      console.error(`[AIService] getAgenticProjectPlan - Error (${Date.now() - startTime}ms):`, error);
+      return { plan: null, actions };
     }
   }
 }
