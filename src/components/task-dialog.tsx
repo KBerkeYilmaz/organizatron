@@ -4,7 +4,10 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { AITagSuggestionsInline } from "~/components/ai-tag-suggestions-inline";
+import { AITimeEstimateInline } from "~/components/ai-time-estimate-inline";
 import { Button } from "~/components/ui/button";
+import { useAITaskAssist } from "~/hooks/use-ai-task-assist";
 import { Calendar } from "~/components/ui/calendar";
 import {
   Dialog,
@@ -109,6 +112,14 @@ export function TaskDialog({
   const [billingStatus, setBillingStatus] = useState<BillingStatus>("pending");
 
   const utils = api.useUtils();
+
+  // AI Task Assist hook (only active for new tasks)
+  const aiAssist = useAITaskAssist({
+    title,
+    description,
+    projectId,
+    enabled: !isEditing && open,
+  });
 
   // Populate form when editing
   useEffect(() => {
@@ -444,9 +455,29 @@ export function TaskDialog({
                   type="number"
                   placeholder="e.g. 60"
                   value={estimatedTime}
-                  onChange={(e) => setEstimatedTime(e.target.value)}
+                  onChange={(e) => {
+                    setEstimatedTime(e.target.value);
+                    aiAssist.setHasUserSetTime(true);
+                  }}
                   min={1}
                 />
+                {/* AI Time Estimate - only show when creating new task */}
+                {!isEditing && aiAssist.isEstimatingTime && !aiAssist.timeEstimate && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span>Estimating time...</span>
+                  </div>
+                )}
+                {!isEditing && aiAssist.timeEstimate && !aiAssist.hasUserSetTime && (
+                  <AITimeEstimateInline
+                    estimate={aiAssist.timeEstimate}
+                    onAccept={() => {
+                      const minutes = aiAssist.acceptTimeEstimate();
+                      setEstimatedTime(String(minutes));
+                    }}
+                    onDismiss={aiAssist.dismissTimeEstimate}
+                  />
+                )}
               </div>
 
               <div className="space-y-2">
@@ -482,8 +513,45 @@ export function TaskDialog({
                 id="tags"
                 placeholder="design, frontend, urgent (comma separated)"
                 value={tags}
-                onChange={(e) => setTags(e.target.value)}
+                onChange={(e) => {
+                  setTags(e.target.value);
+                  aiAssist.setHasUserEditedTags(true);
+                }}
               />
+              {/* AI Tag Suggestions - only show when creating new task */}
+              {!isEditing && aiAssist.isSuggestingTags && aiAssist.tagSuggestions.length === 0 && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span>Finding relevant tags...</span>
+                </div>
+              )}
+              {!isEditing && aiAssist.tagSuggestions.length > 0 && !aiAssist.hasUserEditedTags && (
+                <AITagSuggestionsInline
+                  suggestions={aiAssist.tagSuggestions}
+                  reasoning={aiAssist.tagReasoning}
+                  onAccept={(tag) => {
+                    const currentTags = tags
+                      .split(",")
+                      .map((t) => t.trim())
+                      .filter(Boolean);
+                    if (!currentTags.includes(tag)) {
+                      setTags([...currentTags, tag].join(", "));
+                    }
+                    aiAssist.acceptTag(tag);
+                  }}
+                  onAcceptAll={() => {
+                    const currentTags = tags
+                      .split(",")
+                      .map((t) => t.trim())
+                      .filter(Boolean);
+                    const newTags = [
+                      ...new Set([...currentTags, ...aiAssist.acceptAllTags()]),
+                    ];
+                    setTags(newTags.join(", "));
+                  }}
+                  onDismissAll={aiAssist.dismissAllTags}
+                />
+              )}
             </div>
 
             {/* Billing Section */}

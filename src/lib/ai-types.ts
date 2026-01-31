@@ -26,6 +26,12 @@ export interface AITagSuggestion {
   reasoning: string;
 }
 
+/** Combined task creation assist result (single API call for rate limiting) */
+export interface AITaskAssist {
+  timeEstimate: AITimeEstimate;
+  tagSuggestion: AITagSuggestion;
+}
+
 /** Single task in a goal breakdown */
 export interface AIBreakdownTask {
   title: string;

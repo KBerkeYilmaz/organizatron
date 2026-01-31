@@ -12,7 +12,75 @@ export const aiRouter = createTRPCRouter({
   })),
 
   /**
+   * Combined task creation assist - time estimate + tags in ONE API call.
+   * This is the preferred method for inline task creation AI.
+   * Saves API quota by combining two operations into one.
+   */
+  assistTaskCreation: publicProcedure
+    .input(
+      z.object({
+        title: z.string().min(1),
+        description: z.string().optional(),
+        projectId: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!aiService.isAvailable()) {
+        return { success: false as const, error: "AI not configured" };
+      }
+
+      // Get existing tags from project for context
+      let existingTags: string[] = [];
+      if (input.projectId) {
+        const project = await ctx.db.project.findUnique({
+          where: { id: input.projectId },
+          include: { tasks: { select: { tags: true } } },
+        });
+        existingTags = [...new Set(project?.tasks.flatMap((t) => t.tags) ?? [])];
+      }
+
+      // Get similar completed tasks for time estimation context
+      const similarTasks = await ctx.db.task.findMany({
+        where: {
+          status: "completed",
+          estimatedTime: { not: null },
+        },
+        select: {
+          title: true,
+          estimatedTime: true,
+          timeEntries: {
+            select: { duration: true },
+          },
+        },
+        take: 5,
+        orderBy: { completedAt: "desc" },
+      });
+
+      const tasksWithActual = similarTasks.map((t) => ({
+        title: t.title,
+        estimatedMinutes: Math.round((t.estimatedTime ?? 0) / 60),
+        actualMinutes: Math.round(
+          t.timeEntries.reduce((sum, e) => sum + e.duration, 0) / 60
+        ),
+      }));
+
+      const result = await aiService.assistTaskCreation(
+        input.title,
+        input.description,
+        existingTags.length > 0 ? existingTags : undefined,
+        tasksWithActual.length > 0 ? tasksWithActual : undefined
+      );
+
+      if (!result) {
+        return { success: false as const, error: "Failed to get AI assistance" };
+      }
+
+      return { success: true as const, data: result };
+    }),
+
+  /**
    * Estimate time for a task based on title and description
+   * @deprecated Use assistTaskCreation instead for better rate limiting
    */
   estimateTime: publicProcedure
     .input(
@@ -66,6 +134,7 @@ export const aiRouter = createTRPCRouter({
 
   /**
    * Suggest tags for a task
+   * @deprecated Use assistTaskCreation instead for better rate limiting
    */
   suggestTags: publicProcedure
     .input(
