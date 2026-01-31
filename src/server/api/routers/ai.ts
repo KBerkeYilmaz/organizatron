@@ -349,4 +349,131 @@ export const aiRouter = createTRPCRouter({
 
       return { results };
     }),
+
+  /**
+   * Agentic task guidance - AI can take actions while providing guidance
+   * Uses tool calling to autonomously create subtasks, update estimates, add tags
+   */
+  getAgenticTaskGuidance: publicProcedure
+    .input(
+      z.object({
+        taskId: z.string(),
+        maxSteps: z.number().int().min(1).max(10).default(5),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const startTime = Date.now();
+      console.log(`[AI] getAgenticTaskGuidance started - Task ID: ${input.taskId}`);
+
+      if (!aiService.isAvailable()) {
+        console.log("[AI] getAgenticTaskGuidance failed - AI not configured");
+        return { success: false as const, error: "AI not configured" };
+      }
+
+      const task = await ctx.db.task.findUnique({
+        where: { id: input.taskId },
+        include: { project: { include: { client: true } } },
+      });
+
+      if (!task) {
+        console.log(`[AI] getAgenticTaskGuidance failed - Task not found: ${input.taskId}`);
+        return { success: false as const, error: "Task not found" };
+      }
+
+      console.log(`[AI] getAgenticTaskGuidance - Task: "${task.title}"`);
+
+      const taskContext: TaskContext = {
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        priority: task.priority,
+        status: task.status,
+        dueDate: task.dueDate,
+        estimatedTime: task.estimatedTime,
+        tags: task.tags,
+        projectName: task.project.name,
+        clientName: task.project.client.name,
+      };
+
+      const result = await aiService.getAgenticTaskGuidance(taskContext, input.maxSteps);
+
+      if (!result.guidance) {
+        console.log(`[AI] getAgenticTaskGuidance failed - No response from AI (${Date.now() - startTime}ms)`);
+        return { success: false as const, error: "Failed to generate guidance" };
+      }
+
+      console.log(`[AI] getAgenticTaskGuidance completed - ${result.actions.length} actions taken (${Date.now() - startTime}ms)`);
+      return {
+        success: true as const,
+        data: {
+          guidance: result.guidance,
+          actions: result.actions,
+        },
+      };
+    }),
+
+  /**
+   * Agentic project planner - AI can reorder tasks, schedule them, update priorities
+   * Uses tool calling for autonomous project planning
+   */
+  getAgenticProjectPlan: publicProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        maxSteps: z.number().int().min(1).max(20).default(10),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const startTime = Date.now();
+      console.log(`[AI] getAgenticProjectPlan started - Project ID: ${input.projectId}`);
+
+      if (!aiService.isAvailable()) {
+        console.log("[AI] getAgenticProjectPlan failed - AI not configured");
+        return { success: false as const, error: "AI not configured" };
+      }
+
+      const tasks = await ctx.db.task.findMany({
+        where: {
+          projectId: input.projectId,
+          status: { in: ["todo", "in_progress"] },
+        },
+        include: { project: { include: { client: true } } },
+      });
+
+      if (tasks.length === 0) {
+        console.log(`[AI] getAgenticProjectPlan failed - No tasks found in project: ${input.projectId}`);
+        return { success: false as const, error: "No tasks found in project" };
+      }
+
+      console.log(`[AI] getAgenticProjectPlan - Planning ${tasks.length} tasks in "${tasks[0]?.project.name}"`);
+
+      const taskContexts: TaskContext[] = tasks.map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        priority: t.priority,
+        status: t.status,
+        dueDate: t.dueDate,
+        estimatedTime: t.estimatedTime,
+        tags: t.tags,
+        projectName: t.project.name,
+        clientName: t.project.client.name,
+      }));
+
+      const result = await aiService.getAgenticProjectPlan(taskContexts, input.maxSteps);
+
+      if (!result.plan) {
+        console.log(`[AI] getAgenticProjectPlan failed - No response from AI (${Date.now() - startTime}ms)`);
+        return { success: false as const, error: "Failed to generate plan" };
+      }
+
+      console.log(`[AI] getAgenticProjectPlan completed - ${result.actions.length} actions taken (${Date.now() - startTime}ms)`);
+      return {
+        success: true as const,
+        data: {
+          plan: result.plan,
+          actions: result.actions,
+        },
+      };
+    }),
 });
