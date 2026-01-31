@@ -2,9 +2,13 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { TaskContext } from "~/lib/ai-types";
 
 // Mock the ai package
-vi.mock("ai", () => ({
-  generateText: vi.fn(),
-}));
+vi.mock("ai", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("ai")>();
+  return {
+    ...actual,
+    generateText: vi.fn(),
+  };
+});
 
 // Mock the @ai-sdk/google package
 vi.mock("@ai-sdk/google", () => ({
@@ -457,6 +461,224 @@ describe("AIService", () => {
   describe("singleton instance", () => {
     it("exports a singleton aiService instance", () => {
       expect(aiService).toBeInstanceOf(AIService);
+    });
+  });
+
+  describe("getAgenticTaskGuidance", () => {
+    const mockTask: TaskContext = {
+      id: "task-1",
+      title: "Implement user authentication",
+      description: "Add login and signup forms with validation",
+      priority: "high",
+      status: "todo",
+      dueDate: new Date("2024-02-01"),
+      estimatedTime: 7200,
+      tags: ["auth", "backend"],
+      projectName: "Organizatron",
+      clientName: "Internal",
+    };
+
+    it("returns guidance with actions when AI calls tools", async () => {
+      const mockGuidance = {
+        taskId: "task-1",
+        guidance: "Start by setting up authentication middleware",
+        suggestedPrompts: ["Add login form with validation"],
+        learningResources: [
+          {
+            title: "Auth Guide",
+            type: "documentation",
+            url: "https://example.com",
+            description: "Learn about auth",
+          },
+        ],
+        breakdownSuggestion: {
+          shouldBreakdown: false,
+          suggestedSubtasks: [],
+        },
+      };
+
+      // Mock response with steps containing tool results
+      mockGenerateText.mockResolvedValue({
+        text: JSON.stringify(mockGuidance),
+        steps: [
+          {
+            toolResults: [
+              {
+                toolName: "addTags",
+                output: { success: true, message: 'Added 2 tags to "task-1"' },
+              },
+            ],
+          },
+        ],
+      });
+
+      const service = new AIService();
+      const result = await service.getAgenticTaskGuidance(mockTask);
+
+      expect(result.guidance).toEqual(mockGuidance);
+      expect(result.actions).toHaveLength(1);
+      expect(result.actions[0]!.tool).toBe("addTags");
+      expect(result.actions[0]!.result).toEqual({
+        success: true,
+        message: 'Added 2 tags to "task-1"',
+      });
+    });
+
+    it("returns guidance with no actions when AI doesn't use tools", async () => {
+      const mockGuidance = {
+        taskId: "task-1",
+        guidance: "This task is straightforward - just implement the form",
+        suggestedPrompts: [],
+        learningResources: [],
+        breakdownSuggestion: { shouldBreakdown: false, suggestedSubtasks: [] },
+      };
+
+      mockGenerateText.mockResolvedValue({
+        text: JSON.stringify(mockGuidance),
+        steps: [{ toolResults: [] }],
+      });
+
+      const service = new AIService();
+      const result = await service.getAgenticTaskGuidance(mockTask);
+
+      expect(result.guidance).toEqual(mockGuidance);
+      expect(result.actions).toHaveLength(0);
+    });
+
+    it("creates basic guidance when JSON parsing fails", async () => {
+      mockGenerateText.mockResolvedValue({
+        text: "This is not valid JSON - just some guidance text",
+        steps: [],
+      });
+
+      const service = new AIService();
+      const result = await service.getAgenticTaskGuidance(mockTask);
+
+      expect(result.guidance).not.toBeNull();
+      expect(result.guidance?.taskId).toBe("task-1");
+      expect(result.guidance?.guidance).toBe(
+        "This is not valid JSON - just some guidance text"
+      );
+    });
+
+    it("returns null guidance on API error", async () => {
+      mockGenerateText.mockRejectedValue(new Error("API error"));
+
+      const service = new AIService();
+      const result = await service.getAgenticTaskGuidance(mockTask);
+
+      expect(result.guidance).toBeNull();
+      expect(result.actions).toHaveLength(0);
+    });
+  });
+
+  describe("getAgenticProjectPlan", () => {
+    const mockTasks: TaskContext[] = [
+      {
+        id: "task-1",
+        title: "Setup database",
+        description: "Create Prisma schema",
+        priority: "high",
+        status: "todo",
+        dueDate: null,
+        estimatedTime: null,
+        tags: ["database"],
+        projectName: "E-commerce",
+        clientName: "Client A",
+      },
+      {
+        id: "task-2",
+        title: "Create API endpoints",
+        description: "Build tRPC routers",
+        priority: "medium",
+        status: "todo",
+        dueDate: new Date("2024-02-15"),
+        estimatedTime: 10800,
+        tags: ["api", "backend"],
+        projectName: "E-commerce",
+        clientName: "Client A",
+      },
+    ];
+
+    it("returns plan with actions when AI uses tools", async () => {
+      const mockPlan = {
+        tasks: [
+          { taskId: "task-1", suggestedOrder: 1, estimatedMinutes: 120 },
+          { taskId: "task-2", suggestedOrder: 2, estimatedMinutes: 180 },
+        ],
+        schedule: [
+          {
+            taskId: "task-1",
+            suggestedStart: "2024-02-01T09:00:00.000Z",
+            suggestedEnd: "2024-02-01T11:00:00.000Z",
+          },
+          {
+            taskId: "task-2",
+            suggestedStart: "2024-02-01T11:00:00.000Z",
+            suggestedEnd: "2024-02-01T14:00:00.000Z",
+          },
+        ],
+        summary: "Start with database setup",
+        totalEstimatedTime: 300,
+      };
+
+      mockGenerateText.mockResolvedValue({
+        text: JSON.stringify(mockPlan),
+        steps: [
+          {
+            toolResults: [
+              {
+                toolName: "updateEstimate",
+                output: { success: true, message: "Updated estimate" },
+              },
+              {
+                toolName: "updatePriority",
+                output: { success: true, message: "Updated priority" },
+              },
+            ],
+          },
+        ],
+      });
+
+      const service = new AIService();
+      const result = await service.getAgenticProjectPlan(mockTasks);
+
+      expect(result.plan).not.toBeNull();
+      expect(result.plan?.tasks).toHaveLength(2);
+      expect(result.plan?.schedule).toHaveLength(2);
+      expect(result.plan?.schedule[0]!.suggestedStart).toBeInstanceOf(Date);
+      expect(result.actions).toHaveLength(2);
+    });
+
+    it("returns null plan for empty task list", async () => {
+      const service = new AIService();
+      const result = await service.getAgenticProjectPlan([]);
+
+      expect(result.plan).toBeNull();
+      expect(result.actions).toHaveLength(0);
+      expect(mockGenerateText).not.toHaveBeenCalled();
+    });
+
+    it("returns null plan when JSON parsing fails", async () => {
+      mockGenerateText.mockResolvedValue({
+        text: "Invalid JSON response",
+        steps: [],
+      });
+
+      const service = new AIService();
+      const result = await service.getAgenticProjectPlan(mockTasks);
+
+      expect(result.plan).toBeNull();
+    });
+
+    it("returns null plan on API error", async () => {
+      mockGenerateText.mockRejectedValue(new Error("API error"));
+
+      const service = new AIService();
+      const result = await service.getAgenticProjectPlan(mockTasks);
+
+      expect(result.plan).toBeNull();
+      expect(result.actions).toHaveLength(0);
     });
   });
 });
