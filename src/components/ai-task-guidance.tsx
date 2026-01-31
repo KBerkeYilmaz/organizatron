@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   BookOpen,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   ClipboardCopy,
@@ -11,6 +12,7 @@ import {
   Loader2,
   Sparkles,
   Split,
+  Wand2,
 } from "lucide-react";
 
 import { Badge } from "~/components/ui/badge";
@@ -36,21 +38,35 @@ interface AITaskGuidancePanelProps {
   taskId: string;
   taskTitle: string;
   onBreakdown?: (subtasks: string[]) => void;
+  onRefresh?: () => void;
+}
+
+interface ToolAction {
+  tool: string;
+  result: unknown;
 }
 
 export function AITaskGuidancePanel({
   taskId,
   taskTitle,
   onBreakdown,
+  onRefresh,
 }: AITaskGuidancePanelProps) {
   const [guidance, setGuidance] = useState<AITaskGuidance | null>(null);
+  const [actions, setActions] = useState<ToolAction[]>([]);
   const [isExpanded, setIsExpanded] = useState(true);
   const [copiedPrompt, setCopiedPrompt] = useState<number | null>(null);
 
-  const guidanceMutation = api.ai.getTaskGuidance.useMutation({
+  // Use the agentic endpoint with tool calling
+  const guidanceMutation = api.ai.getAgenticTaskGuidance.useMutation({
     onSuccess: (result) => {
       if (result.success && result.data) {
-        setGuidance(result.data);
+        setGuidance(result.data.guidance);
+        setActions(result.data.actions);
+        // If AI took actions, notify parent to refresh data
+        if (result.data.actions.length > 0) {
+          onRefresh?.();
+        }
       }
     },
   });
@@ -71,6 +87,15 @@ export function AITaskGuidancePanel({
     }
   };
 
+  // Helper to format action results for display
+  const formatActionResult = (action: ToolAction) => {
+    const result = action.result as Record<string, unknown>;
+    if (result.success && result.message) {
+      return result.message as string;
+    }
+    return JSON.stringify(result);
+  };
+
   if (!guidance && !guidanceMutation.isPending) {
     return (
       <Card>
@@ -80,7 +105,7 @@ export function AITaskGuidancePanel({
             AI Guidance
           </CardTitle>
           <CardDescription>
-            Get AI-powered guidance for completing this task
+            Get AI-powered guidance and let AI help organize this task
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -109,7 +134,7 @@ export function AITaskGuidancePanel({
         <CardContent className="flex items-center justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           <span className="ml-2 text-muted-foreground">
-            Generating guidance...
+            Analyzing task and taking actions...
           </span>
         </CardContent>
       </Card>
@@ -146,6 +171,11 @@ export function AITaskGuidancePanel({
               <CardTitle className="text-base flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
                 AI Guidance
+                {actions.length > 0 && (
+                  <Badge variant="secondary" className="ml-2">
+                    {actions.length} action{actions.length > 1 ? "s" : ""} taken
+                  </Badge>
+                )}
               </CardTitle>
               {isExpanded ? (
                 <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -158,6 +188,37 @@ export function AITaskGuidancePanel({
 
         <CollapsibleContent>
           <CardContent className="space-y-4">
+            {/* Actions taken by AI */}
+            {actions.length > 0 && (
+              <>
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Wand2 className="h-4 w-4 text-purple-500" />
+                    <h4 className="font-medium text-sm">Actions Taken</h4>
+                  </div>
+                  <div className="space-y-2 pl-6">
+                    {actions.map((action, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-start gap-2 text-sm rounded-md border bg-green-50 dark:bg-green-950/20 p-2"
+                      >
+                        <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <span className="font-medium capitalize">
+                            {action.tool.replace(/([A-Z])/g, " $1").trim()}
+                          </span>
+                          <p className="text-muted-foreground text-xs mt-0.5">
+                            {formatActionResult(action)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <Separator />
+              </>
+            )}
+
             {/* Main guidance */}
             <div>
               <div className="flex items-start gap-2 mb-2">
@@ -262,9 +323,10 @@ export function AITaskGuidancePanel({
                 </>
               )}
 
-            {/* Breakdown suggestion */}
+            {/* Breakdown suggestion - only show if AI didn't already create subtasks */}
             {guidance.breakdownSuggestion?.shouldBreakdown &&
-              guidance.breakdownSuggestion.suggestedSubtasks && (
+              guidance.breakdownSuggestion.suggestedSubtasks &&
+              !actions.some((a) => a.tool === "createSubtasks") && (
                 <div>
                   <div className="flex items-center gap-2 mb-3">
                     <Split className="h-4 w-4 text-orange-500" />
