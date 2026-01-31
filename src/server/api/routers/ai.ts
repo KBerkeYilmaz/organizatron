@@ -114,16 +114,22 @@ export const aiRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ input }) => {
+      const startTime = Date.now();
+      console.log(`[AI] breakdownGoal started - Goal: "${input.goal.slice(0, 50)}..."`);
+
       if (!aiService.isAvailable()) {
+        console.log("[AI] breakdownGoal failed - AI not configured");
         return { success: false as const, error: "AI not configured" };
       }
 
       const breakdown = await aiService.breakdownGoal(input.goal, input.context);
 
       if (!breakdown) {
+        console.log(`[AI] breakdownGoal failed - No response from AI (${Date.now() - startTime}ms)`);
         return { success: false as const, error: "Failed to breakdown goal" };
       }
 
+      console.log(`[AI] breakdownGoal completed - ${breakdown.tasks.length} tasks generated (${Date.now() - startTime}ms)`);
       return { success: true as const, data: breakdown };
     }),
 
@@ -133,7 +139,11 @@ export const aiRouter = createTRPCRouter({
   getTaskGuidance: publicProcedure
     .input(z.object({ taskId: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      const startTime = Date.now();
+      console.log(`[AI] getTaskGuidance started - Task ID: ${input.taskId}`);
+
       if (!aiService.isAvailable()) {
+        console.log("[AI] getTaskGuidance failed - AI not configured");
         return { success: false as const, error: "AI not configured" };
       }
 
@@ -143,8 +153,11 @@ export const aiRouter = createTRPCRouter({
       });
 
       if (!task) {
+        console.log(`[AI] getTaskGuidance failed - Task not found: ${input.taskId}`);
         return { success: false as const, error: "Task not found" };
       }
+
+      console.log(`[AI] getTaskGuidance - Task: "${task.title}"`);
 
       const taskContext: TaskContext = {
         id: task.id,
@@ -162,9 +175,11 @@ export const aiRouter = createTRPCRouter({
       const guidance = await aiService.getTaskGuidance(taskContext);
 
       if (!guidance) {
+        console.log(`[AI] getTaskGuidance failed - No response from AI (${Date.now() - startTime}ms)`);
         return { success: false as const, error: "Failed to generate guidance" };
       }
 
+      console.log(`[AI] getTaskGuidance completed (${Date.now() - startTime}ms)`);
       return { success: true as const, data: guidance };
     }),
 
@@ -178,7 +193,11 @@ export const aiRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const startTime = Date.now();
+      console.log(`[AI] analyzeProject started - Project ID: ${input.projectId}`);
+
       if (!aiService.isAvailable()) {
+        console.log("[AI] analyzeProject failed - AI not configured");
         return { success: false as const, error: "AI not configured" };
       }
 
@@ -191,8 +210,11 @@ export const aiRouter = createTRPCRouter({
       });
 
       if (tasks.length === 0) {
+        console.log(`[AI] analyzeProject failed - No tasks found in project: ${input.projectId}`);
         return { success: false as const, error: "No tasks found in project" };
       }
+
+      console.log(`[AI] analyzeProject - Analyzing ${tasks.length} tasks in "${tasks[0]?.project.name}"`);
 
       const taskContexts: TaskContext[] = tasks.map((t) => ({
         id: t.id,
@@ -210,9 +232,11 @@ export const aiRouter = createTRPCRouter({
       const plan = await aiService.analyzeProject(taskContexts);
 
       if (!plan) {
+        console.log(`[AI] analyzeProject failed - No response from AI (${Date.now() - startTime}ms)`);
         return { success: false as const, error: "Failed to analyze project" };
       }
 
+      console.log(`[AI] analyzeProject completed - ${plan.tasks.length} tasks scheduled (${Date.now() - startTime}ms)`);
       return { success: true as const, data: plan };
     }),
 

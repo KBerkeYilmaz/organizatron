@@ -17,6 +17,16 @@ interface SimilarTask {
 }
 
 /**
+ * Strip markdown code block wrappers from AI response if present
+ */
+function stripMarkdownCodeBlock(text: string): string {
+  const trimmed = text.trim();
+  // Match ```json ... ``` or ``` ... ```
+  const match = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
+  return match ? match[1]! : trimmed;
+}
+
+/**
  * AI Service for intelligent task management
  *
  * Uses Vercel AI SDK with Google Gemini for:
@@ -45,7 +55,14 @@ export class AIService {
     description?: string,
     similarTasks?: SimilarTask[]
   ): Promise<AITimeEstimate | null> {
+    const startTime = Date.now();
+    console.log(`[AIService] estimateTime - Starting for: "${title}"`);
+    if (similarTasks?.length) {
+      console.log(`[AIService] estimateTime - Using ${similarTasks.length} similar tasks for context`);
+    }
+
     try {
+      console.log(`[AIService] estimateTime - Calling Gemini API...`);
       const similarTasksContext = similarTasks?.length
         ? `\n\nSimilar completed tasks for reference:\n${similarTasks
             .map(
@@ -71,8 +88,11 @@ Respond with JSON only (no markdown):
 }`,
       });
 
-      return JSON.parse(result.text) as AITimeEstimate;
-    } catch {
+      const parsed = JSON.parse(stripMarkdownCodeBlock(result.text)) as AITimeEstimate;
+      console.log(`[AIService] estimateTime - Success! ${parsed.estimatedMinutes}min (${parsed.confidence} confidence) (${Date.now() - startTime}ms)`);
+      return parsed;
+    } catch (error) {
+      console.error(`[AIService] estimateTime - Error (${Date.now() - startTime}ms):`, error);
       return null;
     }
   }
@@ -85,7 +105,14 @@ Respond with JSON only (no markdown):
     description?: string,
     existingTags?: string[]
   ): Promise<AITagSuggestion | null> {
+    const startTime = Date.now();
+    console.log(`[AIService] suggestTags - Starting for: "${title}"`);
+    if (existingTags?.length) {
+      console.log(`[AIService] suggestTags - Existing tags: ${existingTags.join(', ')}`);
+    }
+
     try {
+      console.log(`[AIService] suggestTags - Calling Gemini API...`);
       const existingTagsContext = existingTags?.length
         ? `\n\nExisting tags in this project: ${existingTags.join(", ")}`
         : "";
@@ -106,8 +133,11 @@ Respond with JSON only (no markdown):
 }`,
       });
 
-      return JSON.parse(result.text) as AITagSuggestion;
-    } catch {
+      const parsed = JSON.parse(stripMarkdownCodeBlock(result.text)) as AITagSuggestion;
+      console.log(`[AIService] suggestTags - Success! Suggested: ${parsed.tags.join(', ')} (${Date.now() - startTime}ms)`);
+      return parsed;
+    } catch (error) {
+      console.error(`[AIService] suggestTags - Error (${Date.now() - startTime}ms):`, error);
       return null;
     }
   }
@@ -119,11 +149,19 @@ Respond with JSON only (no markdown):
     goal: string,
     context?: string
   ): Promise<AITaskBreakdown | null> {
+    const startTime = Date.now();
+    console.log(`[AIService] breakdownGoal - Starting goal breakdown`);
+    console.log(`[AIService] breakdownGoal - Goal: "${goal.slice(0, 100)}${goal.length > 100 ? '...' : ''}"`);
+    if (context) {
+      console.log(`[AIService] breakdownGoal - Context provided: "${context.slice(0, 50)}..."`);
+    }
+
     try {
       const contextSection = context
         ? `\n\nAdditional context: ${context}`
         : "";
 
+      console.log(`[AIService] breakdownGoal - Calling Gemini API...`);
       const result = await generateText({
         model: this.model,
         prompt: `Break down this goal into actionable tasks with time estimates.
@@ -163,8 +201,12 @@ Respond with JSON only (no markdown):
 }`,
       });
 
-      return JSON.parse(result.text) as AITaskBreakdown;
-    } catch {
+      const parsed = JSON.parse(stripMarkdownCodeBlock(result.text)) as AITaskBreakdown;
+      console.log(`[AIService] breakdownGoal - Success! Generated ${parsed.tasks.length} tasks (${Date.now() - startTime}ms)`);
+      console.log(`[AIService] breakdownGoal - Summary: "${parsed.summary.slice(0, 100)}..."`);
+      return parsed;
+    } catch (error) {
+      console.error(`[AIService] breakdownGoal - Error (${Date.now() - startTime}ms):`, error);
       return null;
     }
   }
@@ -173,7 +215,12 @@ Respond with JSON only (no markdown):
    * Get guidance for completing a specific task
    */
   async getTaskGuidance(task: TaskContext): Promise<AITaskGuidance | null> {
+    const startTime = Date.now();
+    console.log(`[AIService] getTaskGuidance - Starting for task: "${task.title}"`);
+    console.log(`[AIService] getTaskGuidance - Project: ${task.projectName}, Priority: ${task.priority}`);
+
     try {
+      console.log(`[AIService] getTaskGuidance - Calling Gemini API...`);
       const result = await generateText({
         model: this.model,
         prompt: `Provide guidance for completing this task.
@@ -212,8 +259,12 @@ Respond with JSON only (no markdown):
 }`,
       });
 
-      return JSON.parse(result.text) as AITaskGuidance;
-    } catch {
+      const parsed = JSON.parse(stripMarkdownCodeBlock(result.text)) as AITaskGuidance;
+      console.log(`[AIService] getTaskGuidance - Success! (${Date.now() - startTime}ms)`);
+      console.log(`[AIService] getTaskGuidance - Has breakdown suggestion: ${parsed.breakdownSuggestion?.shouldBreakdown ?? false}`);
+      return parsed;
+    } catch (error) {
+      console.error(`[AIService] getTaskGuidance - Error (${Date.now() - startTime}ms):`, error);
       return null;
     }
   }
@@ -222,11 +273,18 @@ Respond with JSON only (no markdown):
    * Analyze project tasks and suggest optimal execution order
    */
   async analyzeProject(tasks: TaskContext[]): Promise<AIProjectPlan | null> {
+    const startTime = Date.now();
+    console.log(`[AIService] analyzeProject - Starting analysis for ${tasks.length} tasks`);
+
     if (tasks.length === 0) {
+      console.log(`[AIService] analyzeProject - No tasks to analyze`);
       return null;
     }
 
+    console.log(`[AIService] analyzeProject - Project: ${tasks[0]?.projectName}`);
+
     try {
+      console.log(`[AIService] analyzeProject - Calling Gemini API...`);
       const tasksContext = tasks
         .map(
           (t) =>
@@ -234,7 +292,7 @@ Respond with JSON only (no markdown):
         )
         .join("\n");
 
-      const result = await generateText({
+      const apiResult = await generateText({
         model: this.model,
         prompt: `Analyze these tasks and suggest the optimal execution order.
 
@@ -275,10 +333,10 @@ Respond with JSON only (no markdown):
 }`,
       });
 
-      const parsed = JSON.parse(result.text);
+      const parsed = JSON.parse(stripMarkdownCodeBlock(apiResult.text));
 
       // Convert date strings to Date objects
-      return {
+      const plan = {
         ...parsed,
         schedule: parsed.schedule.map(
           (s: { taskId: string; suggestedStart: string; suggestedEnd: string }) => ({
@@ -288,7 +346,12 @@ Respond with JSON only (no markdown):
           })
         ),
       } as AIProjectPlan;
-    } catch {
+
+      console.log(`[AIService] analyzeProject - Success! ${plan.tasks.length} tasks scheduled (${Date.now() - startTime}ms)`);
+      console.log(`[AIService] analyzeProject - Summary: "${plan.summary.slice(0, 100)}..."`);
+      return plan;
+    } catch (error) {
+      console.error(`[AIService] analyzeProject - Error (${Date.now() - startTime}ms):`, error);
       return null;
     }
   }
