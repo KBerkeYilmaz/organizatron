@@ -1,11 +1,32 @@
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { TRPCError } from "@trpc/server";
+import { createTRPCRouter, protectedProcedure, publicProcedure } from "~/server/api/trpc";
 import { aiService } from "~/server/services/ai";
+import { checkRateLimit, AI_RATE_LIMITS } from "~/server/services/rate-limiter";
 import type { TaskContext } from "~/lib/ai-types";
+
+/**
+ * Helper to check rate limit and throw if exceeded
+ */
+function enforceRateLimit(
+  userId: string,
+  endpoint: string,
+  config: { maxRequests: number; windowMs: number }
+) {
+  const result = checkRateLimit(`${endpoint}:${userId}`, config);
+  if (!result.allowed) {
+    throw new TRPCError({
+      code: "TOO_MANY_REQUESTS",
+      message: `Rate limit exceeded. Try again in ${Math.ceil((result.resetAt - Date.now()) / 1000)} seconds.`,
+    });
+  }
+  return result;
+}
 
 export const aiRouter = createTRPCRouter({
   /**
    * Check if AI service is available
+   * This endpoint remains public so the UI can check status before login
    */
   getStatus: publicProcedure.query(() => ({
     available: aiService.isAvailable(),
@@ -16,7 +37,7 @@ export const aiRouter = createTRPCRouter({
    * This is the preferred method for inline task creation AI.
    * Saves API quota by combining two operations into one.
    */
-  assistTaskCreation: publicProcedure
+  assistTaskCreation: protectedProcedure
     .input(
       z.object({
         title: z.string().min(1),
@@ -25,6 +46,7 @@ export const aiRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      enforceRateLimit(ctx.user.id, "assistTaskCreation", AI_RATE_LIMITS.taskAssist);
       if (!aiService.isAvailable()) {
         return { success: false as const, error: "AI not configured" };
       }
@@ -82,7 +104,7 @@ export const aiRouter = createTRPCRouter({
    * Estimate time for a task based on title and description
    * @deprecated Use assistTaskCreation instead for better rate limiting
    */
-  estimateTime: publicProcedure
+  estimateTime: protectedProcedure
     .input(
       z.object({
         title: z.string().min(1),
@@ -90,6 +112,7 @@ export const aiRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      enforceRateLimit(ctx.user.id, "estimateTime", AI_RATE_LIMITS.taskAssist);
       if (!aiService.isAvailable()) {
         return { success: false as const, error: "AI not configured" };
       }
@@ -136,7 +159,7 @@ export const aiRouter = createTRPCRouter({
    * Suggest tags for a task
    * @deprecated Use assistTaskCreation instead for better rate limiting
    */
-  suggestTags: publicProcedure
+  suggestTags: protectedProcedure
     .input(
       z.object({
         title: z.string().min(1),
@@ -145,6 +168,7 @@ export const aiRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      enforceRateLimit(ctx.user.id, "suggestTags", AI_RATE_LIMITS.taskAssist);
       if (!aiService.isAvailable()) {
         return { success: false as const, error: "AI not configured" };
       }
@@ -175,14 +199,15 @@ export const aiRouter = createTRPCRouter({
   /**
    * Break down a goal into actionable tasks
    */
-  breakdownGoal: publicProcedure
+  breakdownGoal: protectedProcedure
     .input(
       z.object({
         goal: z.string().min(1),
         context: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      enforceRateLimit(ctx.user.id, "breakdownGoal", AI_RATE_LIMITS.breakdown);
       const startTime = Date.now();
       console.log(`[AI] breakdownGoal started - Goal: "${input.goal.slice(0, 50)}..."`);
 
@@ -205,9 +230,10 @@ export const aiRouter = createTRPCRouter({
   /**
    * Get guidance for completing a specific task
    */
-  getTaskGuidance: publicProcedure
+  getTaskGuidance: protectedProcedure
     .input(z.object({ taskId: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      enforceRateLimit(ctx.user.id, "getTaskGuidance", AI_RATE_LIMITS.guidance);
       const startTime = Date.now();
       console.log(`[AI] getTaskGuidance started - Task ID: ${input.taskId}`);
 
@@ -255,13 +281,14 @@ export const aiRouter = createTRPCRouter({
   /**
    * Analyze project tasks and suggest execution order
    */
-  analyzeProject: publicProcedure
+  analyzeProject: protectedProcedure
     .input(
       z.object({
         projectId: z.string(),
       })
     )
     .mutation(async ({ ctx, input }) => {
+      enforceRateLimit(ctx.user.id, "analyzeProject", AI_RATE_LIMITS.guidance);
       const startTime = Date.now();
       console.log(`[AI] analyzeProject started - Project ID: ${input.projectId}`);
 
@@ -312,7 +339,7 @@ export const aiRouter = createTRPCRouter({
   /**
    * Apply AI-suggested schedule to tasks
    */
-  applySchedule: publicProcedure
+  applySchedule: protectedProcedure
     .input(
       z.object({
         schedule: z.array(
@@ -325,6 +352,7 @@ export const aiRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // No rate limit for apply - it's a user action after AI analysis
       const results: { taskId: string; success: boolean; error?: string }[] = [];
 
       for (const item of input.schedule) {
@@ -354,7 +382,7 @@ export const aiRouter = createTRPCRouter({
    * Agentic task guidance - AI can take actions while providing guidance
    * Uses tool calling to autonomously create subtasks, update estimates, add tags
    */
-  getAgenticTaskGuidance: publicProcedure
+  getAgenticTaskGuidance: protectedProcedure
     .input(
       z.object({
         taskId: z.string(),
@@ -362,6 +390,7 @@ export const aiRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      enforceRateLimit(ctx.user.id, "getAgenticTaskGuidance", AI_RATE_LIMITS.agentic);
       const startTime = Date.now();
       console.log(`[AI] getAgenticTaskGuidance started - Task ID: ${input.taskId}`);
 
@@ -416,7 +445,7 @@ export const aiRouter = createTRPCRouter({
    * Agentic project planner - AI can reorder tasks, schedule them, update priorities
    * Uses tool calling for autonomous project planning
    */
-  getAgenticProjectPlan: publicProcedure
+  getAgenticProjectPlan: protectedProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -424,6 +453,7 @@ export const aiRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      enforceRateLimit(ctx.user.id, "getAgenticProjectPlan", AI_RATE_LIMITS.agentic);
       const startTime = Date.now();
       console.log(`[AI] getAgenticProjectPlan started - Project ID: ${input.projectId}`);
 

@@ -1,7 +1,10 @@
 import { streamText, convertToModelMessages, smoothStream, type UIMessage } from "ai";
 import { google } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
+import { headers } from "next/headers";
 import { env } from "~/env";
+import { auth } from "~/lib/auth";
+import { checkRateLimit, AI_RATE_LIMITS } from "~/server/services/rate-limiter";
 
 export const runtime = "nodejs";
 
@@ -31,6 +34,41 @@ interface ChatRequest {
 }
 
 export async function POST(req: Request) {
+  // Authentication check
+  const headersList = await headers();
+  const session = await auth.api.getSession({ headers: headersList });
+
+  if (!session?.user) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // Rate limiting
+  const rateLimitResult = checkRateLimit(
+    `chat:${session.user.id}`,
+    AI_RATE_LIMITS.chat
+  );
+
+  if (!rateLimitResult.allowed) {
+    const retryAfter = Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000);
+    return new Response(
+      JSON.stringify({
+        error: `Rate limit exceeded. Try again in ${retryAfter} seconds.`,
+      }),
+      {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "Retry-After": String(retryAfter),
+          "X-RateLimit-Remaining": "0",
+          "X-RateLimit-Reset": String(rateLimitResult.resetAt),
+        },
+      }
+    );
+  }
+
   const model = getModel();
   if (!model) {
     return new Response(JSON.stringify({ error: "AI not configured" }), {
