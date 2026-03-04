@@ -4,6 +4,7 @@ import {
   publicProcedure,
 } from "~/server/api/trpc";
 import { activeTimerRouter } from "./routers/activeTimer";
+import { aiRouter } from "./routers/ai";
 import { clientRouter } from "./routers/client";
 import { googleCalendarRouter } from "./routers/googleCalendar";
 import { projectRouter } from "./routers/project";
@@ -19,6 +20,7 @@ import { timeEntryRouter } from "./routers/timeEntry";
 export const appRouter = createTRPCRouter({
   health: publicProcedure.query(() => ({ status: "ok" })),
   activeTimer: activeTimerRouter,
+  ai: aiRouter,
   clients: clientRouter,
   googleCalendar: googleCalendarRouter,
   project: projectRouter,

@@ -16,6 +16,12 @@ export const env = createEnv({
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     // Better Auth
     BETTER_AUTH_SECRET: z.string().min(32),
+    // AI Providers
+    GOOGLE_GENERATIVE_AI_API_KEY: z.string().min(1).optional(),
+    ANTHROPIC_API_KEY: z.string().min(1).optional(),
+    GROQ_API_KEY: z.string().min(1).optional(),
+    // Web Search (Tavily)
+    TAVILY_API_KEY: z.string().min(1).optional(),
   },
 
   /**
@@ -40,6 +46,12 @@ export const env = createEnv({
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
     // Better Auth
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
+    // AI Providers
+    GOOGLE_GENERATIVE_AI_API_KEY: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    GROQ_API_KEY: process.env.GROQ_API_KEY,
+    // Web Search (Tavily)
+    TAVILY_API_KEY: process.env.TAVILY_API_KEY,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially

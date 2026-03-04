@@ -23,6 +23,7 @@ import {
 } from "~/components/ui/dialog";
 import { Separator } from "~/components/ui/separator";
 import { TaskTimerButton } from "~/components/task-timer-button";
+import { AITaskGuidancePanel } from "~/components/ai-task-guidance";
 import { formatDuration } from "~/lib/format";
 import { cn } from "~/lib/utils";
 import type { Priority, TaskStatus } from "~/lib/types";
@@ -57,10 +58,16 @@ export function TaskDetailModal({
   onEdit,
 }: TaskDetailModalProps) {
   const router = useRouter();
+  const utils = api.useUtils();
   const { data: task, isLoading } = api.task.getById.useQuery(
     { id: taskId },
     { enabled: open && !!taskId }
   );
+
+  // Callback to refresh task data when AI takes actions
+  const handleRefreshTask = () => {
+    void utils.task.getById.invalidate({ id: taskId });
+  };
 
   const handleNavigate = (href: string) => {
     // Close modal first, then navigate after a brief delay
@@ -178,6 +185,15 @@ export function TaskDetailModal({
                     {task.description}
                   </p>
                 </div>
+              )}
+
+              {/* AI Guidance Panel - only show for non-completed tasks */}
+              {task.status !== "completed" && task.status !== "archived" && (
+                <AITaskGuidancePanel
+                  taskId={task.id}
+                  taskTitle={task.title}
+                  onRefresh={handleRefreshTask}
+                />
               )}
 
               {/* Meta info grid */}
