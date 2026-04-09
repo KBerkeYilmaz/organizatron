@@ -402,9 +402,17 @@ Respond with JSON only (no markdown):
         )
         .join("\n");
 
+      const now = new Date();
+      const todayISO = now.toISOString();
+      const todayReadable = now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+
       const apiResult = await generateText({
         model: this.model,
         prompt: `Analyze these tasks and suggest the optimal execution order.
+
+TODAY IS: ${todayReadable} (${todayISO})
+Working hours: 9:00 AM - 5:00 PM
+⚠️ SCHEDULING RULE: ALL dates in your output MUST be on or after today (${todayISO.slice(0, 10)}). Never use a date from a previous month or year.
 
 Project: ${tasks[0]!.projectName}
 Tasks:
@@ -415,9 +423,6 @@ Consider:
 - What's the logical build order?
 - Due date constraints
 - Priority levels
-
-Today: ${new Date().toISOString()}
-Working hours: 9:00 - 17:00
 
 Respond with JSON only (no markdown):
 {
@@ -617,19 +622,23 @@ After using any tools (or deciding not to), provide your guidance as JSON:
         )
         .join("\n");
 
+      const now = new Date();
+      const todayISO = now.toISOString();
+      const todayReadable = now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+
       const result = await generateText({
         model: this.model,
         tools: userId ? createProjectPlannerTools(userId) : projectPlannerTools,
         stopWhen: stepCountIs(maxSteps),
         prompt: `You are a project planning assistant. Analyze these tasks and create an optimal execution plan.
 
+TODAY IS: ${todayReadable} (${todayISO})
+Working hours: 9:00 AM - 5:00 PM
+⚠️ SCHEDULING RULE: ALL dates in your output MUST be on or after today (${todayISO.slice(0, 10)}). Never use a date from a previous month or year. If you are unsure of a date, use today or tomorrow.
+
 Project: ${tasks[0]!.projectName}
 Tasks:
 ${tasksContext}
-
-Today: ${new Date().toISOString()}
-Working hours: 9:00 - 17:00
-SCHEDULING RULE: All scheduled dates MUST be today or in the future. Never schedule a task before today's date. Start the first task no earlier than the next available working hour from now.
 
 You have access to tools to help organize this project:
 - createSubtasks: Break down complex tasks into smaller pieces

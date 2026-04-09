@@ -222,7 +222,7 @@ export const updatePriorityTool = tool({
  */
 export const scheduleTaskTool = tool({
   description:
-    "Schedule a task to start at a specific date and time. Use for planning when to work on tasks.",
+    "Schedule a task to start at a specific date and time. Use for planning when to work on tasks. The scheduledStart date MUST be today or in the future — never a past date.",
   inputSchema: z.object({
     taskId: z.string().describe("The ID of the task to schedule"),
     scheduledStart: z
@@ -238,6 +238,15 @@ export const scheduleTaskTool = tool({
 
     if (isNaN(startDate.getTime())) {
       return { success: false, error: "Invalid date format" };
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (startDate < today) {
+      return {
+        success: false,
+        error: `Cannot schedule tasks in the past. The date ${scheduledStart} is before today (${today.toISOString().slice(0, 10)}). Use today's date or a future date.`,
+      };
     }
 
     const task = await db.task.update({
@@ -477,6 +486,15 @@ function createScheduleTaskTool(userId: string) {
       const startDate = new Date(scheduledStart);
       if (isNaN(startDate.getTime())) {
         return { success: false, error: "Invalid date format" };
+      }
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (startDate < today) {
+        return {
+          success: false,
+          error: `Cannot schedule tasks in the past. The date ${scheduledStart} is before today (${today.toISOString().slice(0, 10)}). Use today's date or a future date.`,
+        };
       }
 
       const task = await db.task.update({
