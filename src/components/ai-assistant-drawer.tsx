@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState, useMemo } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import { api } from "~/trpc/react";
 import {
   Bot,
   ChevronDown,
@@ -58,11 +59,28 @@ const suggestedQuestions = [
 ];
 
 // Helper to extract text content from message parts
-function getMessageText(message: { parts: Array<{ type: string; text?: string }> }): string {
-  return message.parts
+function getMessageText(message: { parts: Array<{ type: string; text?: string; toolName?: string; state?: string }> }): string {
+  const text = message.parts
     .filter((part): part is { type: "text"; text: string } => part.type === "text")
     .map((part) => part.text)
     .join("");
+
+  if (text) return text;
+
+  // Fallback: show what tool was used when there's no text yet
+  const toolParts = message.parts.filter((p) => p.type === "tool-invocation");
+  if (toolParts.length > 0) {
+    return toolParts
+      .map((p) => {
+        const name = (p.toolName ?? "tool").replace(/([A-Z])/g, " $1").trim();
+        return p.state === "call" || p.state === "partial-call"
+          ? `Using ${name}…`
+          : `Used ${name}`;
+      })
+      .join(", ");
+  }
+
+  return "";
 }
 
 export function AIAssistantDrawer({
@@ -78,17 +96,34 @@ export function AIAssistantDrawer({
   const [showQuickActions, setShowQuickActions] = useState(true);
   const [input, setInput] = useState("");
 
+  const utils = api.useUtils();
+
   // Memoize transport to prevent recreation on every render
   const transport = useMemo(
     () => new DefaultChatTransport({
       api: "/api/ai/chat",
-      body: { taskContext },
+      body: {
+        taskContext,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, // e.g. "Europe/Istanbul"
+      },
     }),
     [taskContext]
   );
 
   const { messages, sendMessage, status, setMessages } = useChat({
     transport,
+    onFinish: (message) => {
+      // Invalidate task cache if a createTask tool call succeeded
+      const hadTaskCreation = message.parts?.some(
+        (p) =>
+          p.type === "tool-invocation" &&
+          (p as { type: string; toolName?: string; state?: string }).toolName === "createTask" &&
+          (p as { type: string; state?: string }).state === "result"
+      );
+      if (hadTaskCreation) {
+        void utils.task.getAll.invalidate();
+      }
+    },
   });
 
   const isLoading = status === "streaming" || status === "submitted";

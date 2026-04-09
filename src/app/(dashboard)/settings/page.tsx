@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Calendar, CheckCircle, ExternalLink, Loader2, Unlink } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,8 +18,34 @@ import { Separator } from "~/components/ui/separator";
 import { Skeleton } from "~/components/ui/skeleton";
 import { api } from "~/trpc/react";
 
+const OAUTH_ERROR_MESSAGES: Record<string, string> = {
+  google_auth_failed: "Google authorization failed. Please try again.",
+  google_not_configured: "Google OAuth is not configured on this server.",
+  not_authenticated: "You must be signed in to connect Google Calendar.",
+};
+
 export default function SettingsPage() {
   const utils = api.useUtils();
+  const searchParams = useSearchParams();
+
+  // Handle OAuth redirect result (success/error query params from callback)
+  useEffect(() => {
+    const success = searchParams.get("success");
+    const error = searchParams.get("error");
+
+    if (success === "google_connected") {
+      toast.success("Google Calendar connected!", {
+        description: "Tasks with due dates or scheduled times will now sync automatically.",
+      });
+      void utils.googleCalendar.getStatus.invalidate();
+      window.history.replaceState({}, "", "/settings");
+    } else if (error) {
+      const message = OAUTH_ERROR_MESSAGES[error] ?? `Connection failed: ${error}`;
+      toast.error("Google Calendar connection failed", { description: message });
+      window.history.replaceState({}, "", "/settings");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { data: calendarStatus, isLoading: isStatusLoading } =
     api.googleCalendar.getStatus.useQuery();
@@ -32,8 +60,24 @@ export default function SettingsPage() {
     },
   });
 
+  const testMutation = api.googleCalendar.testConnection.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success("Calendar sync is working!", {
+          description: "A test event was created and deleted successfully.",
+        });
+      } else {
+        toast.error("Calendar sync failed", {
+          description: result.error ?? "Unknown error",
+        });
+      }
+    },
+    onError: (error) => {
+      toast.error("Test failed", { description: error.message });
+    },
+  });
+
   const handleConnect = () => {
-    // Redirect to Google OAuth flow
     window.location.href = "/api/auth/google";
   };
 
@@ -105,7 +149,20 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => testMutation.mutate()}
+                      disabled={testMutation.isPending}
+                    >
+                      {testMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                      )}
+                      Test Sync
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"

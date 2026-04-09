@@ -11,7 +11,7 @@ import type {
   AIProjectPlan,
   TaskContext,
 } from "~/lib/ai-types";
-import { taskGuidanceTools, projectPlannerTools } from "./ai-tools";
+import { taskGuidanceTools, projectPlannerTools, createProjectPlannerTools } from "./ai-tools";
 
 interface SimilarTask {
   title: string;
@@ -591,7 +591,8 @@ After using any tools (or deciding not to), provide your guidance as JSON:
    */
   async getAgenticProjectPlan(
     tasks: TaskContext[],
-    maxSteps = 10
+    maxSteps = 10,
+    userId?: string
   ): Promise<{
     plan: AIProjectPlan | null;
     actions: Array<{ tool: string; result: unknown }>;
@@ -618,7 +619,7 @@ After using any tools (or deciding not to), provide your guidance as JSON:
 
       const result = await generateText({
         model: this.model,
-        tools: projectPlannerTools,
+        tools: userId ? createProjectPlannerTools(userId) : projectPlannerTools,
         stopWhen: stepCountIs(maxSteps),
         prompt: `You are a project planning assistant. Analyze these tasks and create an optimal execution plan.
 
@@ -628,6 +629,7 @@ ${tasksContext}
 
 Today: ${new Date().toISOString()}
 Working hours: 9:00 - 17:00
+SCHEDULING RULE: All scheduled dates MUST be today or in the future. Never schedule a task before today's date. Start the first task no earlier than the next available working hour from now.
 
 You have access to tools to help organize this project:
 - createSubtasks: Break down complex tasks into smaller pieces

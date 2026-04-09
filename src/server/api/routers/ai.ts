@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "~/server/api/trpc";
 import { aiService } from "~/server/services/ai";
 import { checkRateLimit, AI_RATE_LIMITS } from "~/server/services/rate-limiter";
+import { GoogleCalendarService } from "~/server/services/google-calendar";
 import type { TaskContext } from "~/lib/ai-types";
 
 /**
@@ -357,13 +358,39 @@ export const aiRouter = createTRPCRouter({
 
       for (const item of input.schedule) {
         try {
-          await ctx.db.task.update({
+          const updatedTask = await ctx.db.task.update({
             where: { id: item.taskId },
             data: { scheduledStart: item.suggestedStart },
           });
 
-          // TODO: Add Google Calendar sync when syncToCalendar is true
-          // This will reuse existing GoogleCalendarService
+          if (input.syncToCalendar) {
+            const calendarResult = updatedTask.googleEventId
+              ? await GoogleCalendarService.updateEvent(ctx.user.id, updatedTask.googleEventId, {
+                  title: updatedTask.title,
+                  description: updatedTask.description,
+                  scheduledStart: updatedTask.scheduledStart,
+                  dueDate: updatedTask.dueDate,
+                  estimatedTime: updatedTask.estimatedTime,
+                })
+              : await GoogleCalendarService.createEvent(ctx.user.id, {
+                  title: updatedTask.title,
+                  description: updatedTask.description,
+                  scheduledStart: updatedTask.scheduledStart,
+                  dueDate: updatedTask.dueDate,
+                  estimatedTime: updatedTask.estimatedTime,
+                });
+
+            if (calendarResult.success && calendarResult.eventId && !updatedTask.googleEventId) {
+              await ctx.db.task.update({
+                where: { id: item.taskId },
+                data: { googleEventId: calendarResult.eventId },
+              });
+            }
+
+            if (!calendarResult.success) {
+              console.warn(`[AI] applySchedule - Calendar sync failed for task ${item.taskId}: ${calendarResult.error}`);
+            }
+          }
 
           results.push({ taskId: item.taskId, success: true });
         } catch (error) {
@@ -490,7 +517,7 @@ export const aiRouter = createTRPCRouter({
         clientName: t.project.client.name,
       }));
 
-      const result = await aiService.getAgenticProjectPlan(taskContexts, input.maxSteps);
+      const result = await aiService.getAgenticProjectPlan(taskContexts, input.maxSteps, ctx.user.id);
 
       if (!result.plan) {
         console.log(`[AI] getAgenticProjectPlan failed - No response from AI (${Date.now() - startTime}ms)`);

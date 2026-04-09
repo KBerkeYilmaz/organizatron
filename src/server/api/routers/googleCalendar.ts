@@ -1,42 +1,53 @@
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import { GoogleCalendarService } from "~/server/services/google-calendar";
 
 export const googleCalendarRouter = createTRPCRouter({
   /**
-   * Get Google Calendar connection status
+   * Get Google Calendar connection status for the logged-in user
    */
-  getStatus: publicProcedure.query(async ({ ctx }) => {
-    // Get the first user (simplified single-user mode)
-    // In a multi-user app, you'd get the authenticated user
-    const user = await ctx.db.user.findFirst({
-      include: { googleAccount: true },
+  getStatus: protectedProcedure.query(async ({ ctx }) => {
+    const googleAccount = await ctx.db.googleAccount.findUnique({
+      where: { userId: ctx.user.id },
+      select: { email: true },
     });
 
-    if (!user || !user.googleAccount) {
-      return {
-        connected: false,
-        email: null,
-      };
+    if (!googleAccount) {
+      return { connected: false, email: null };
     }
 
-    return {
-      connected: true,
-      email: user.googleAccount.email,
-    };
+    return { connected: true, email: googleAccount.email };
   }),
 
   /**
-   * Disconnect Google account
+   * Test calendar connection by creating and immediately deleting a test event
    */
-  disconnect: publicProcedure.mutation(async ({ ctx }) => {
-    const user = await ctx.db.user.findFirst();
+  testConnection: protectedProcedure.mutation(async ({ ctx }) => {
+    const now = new Date();
+    const end = new Date(now.getTime() + 30 * 60 * 1000); // 30 min
 
-    if (!user) {
-      return { success: true };
+    const result = await GoogleCalendarService.createEvent(ctx.user.id, {
+      title: "[Test] Organizatron sync check",
+      description: "This event was created to test Google Calendar sync. It can be deleted.",
+      scheduledStart: now,
+      dueDate: end,
+      estimatedTime: 1800,
+    });
+
+    if (result.success && result.eventId) {
+      // Clean up the test event
+      await GoogleCalendarService.deleteEvent(ctx.user.id, result.eventId);
     }
 
+    return result;
+  }),
+
+  /**
+   * Disconnect Google Calendar for the logged-in user
+   */
+  disconnect: protectedProcedure.mutation(async ({ ctx }) => {
     // Delete Google account
     await ctx.db.googleAccount.deleteMany({
-      where: { userId: user.id },
+      where: { userId: ctx.user.id },
     });
 
     // Clear all googleEventIds from tasks

@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod/v4";
 import { db } from "~/server/db";
 import { env } from "~/env";
+import { GoogleCalendarService } from "./google-calendar";
 
 /**
  * AI Tools for task management
@@ -454,3 +455,189 @@ export const projectPlannerTools = {
   reorderTasks: reorderTasksTool,
   webSearch: webSearchTool,
 };
+
+/**
+ * Create a user-aware scheduleTask tool that also syncs to Google Calendar
+ * if the user has it connected.
+ */
+function createScheduleTaskTool(userId: string) {
+  return tool({
+    description: scheduleTaskTool.description,
+    inputSchema: z.object({
+      taskId: z.string().describe("The ID of the task to schedule"),
+      scheduledStart: z
+        .string()
+        .describe("ISO 8601 date string for when to start the task"),
+      reasoning: z
+        .string()
+        .optional()
+        .describe("Brief explanation for the scheduling decision"),
+    }),
+    execute: async ({ taskId, scheduledStart, reasoning }) => {
+      const startDate = new Date(scheduledStart);
+      if (isNaN(startDate.getTime())) {
+        return { success: false, error: "Invalid date format" };
+      }
+
+      const task = await db.task.update({
+        where: { id: taskId },
+        data: { scheduledStart: startDate },
+        select: {
+          id: true,
+          title: true,
+          scheduledStart: true,
+          description: true,
+          dueDate: true,
+          estimatedTime: true,
+          googleEventId: true,
+        },
+      });
+
+      // Sync to Google Calendar if connected
+      const calendarResult = task.googleEventId
+        ? await GoogleCalendarService.updateEvent(userId, task.googleEventId, {
+            title: task.title,
+            description: task.description,
+            scheduledStart: task.scheduledStart,
+            dueDate: task.dueDate,
+            estimatedTime: task.estimatedTime,
+          })
+        : await GoogleCalendarService.createEvent(userId, {
+            title: task.title,
+            description: task.description,
+            scheduledStart: task.scheduledStart,
+            dueDate: task.dueDate,
+            estimatedTime: task.estimatedTime,
+          });
+
+      if (calendarResult.success && calendarResult.eventId && !task.googleEventId) {
+        await db.task.update({
+          where: { id: taskId },
+          data: { googleEventId: calendarResult.eventId },
+        });
+      }
+
+      return {
+        success: true,
+        message: `Scheduled "${task.title}" for ${startDate.toLocaleString()}${calendarResult.success ? " (synced to Google Calendar)" : ""}`,
+        reasoning,
+        task: {
+          id: task.id,
+          title: task.title,
+          scheduledStart: startDate.toISOString(),
+        },
+      };
+    },
+  });
+}
+
+/**
+ * Create user-aware project planner tools with Google Calendar sync on scheduleTask.
+ * Use this when you have a userId (i.e. inside a tRPC protectedProcedure).
+ */
+export function createProjectPlannerTools(userId: string) {
+  return {
+    createSubtasks: createSubtasksTool,
+    updateEstimate: updateEstimateTool,
+    addTags: addTagsTool,
+    updatePriority: updatePriorityTool,
+    scheduleTask: createScheduleTaskTool(userId),
+    reorderTasks: reorderTasksTool,
+    webSearch: webSearchTool,
+  };
+}
+
+/**
+ * Tools for the chat endpoint.
+ * Allows the AI chatbot to create tasks and schedule them, with Google Calendar sync.
+ */
+export function createChatTools(userId: string, projects: { id: string; name: string }[]) {
+  const projectMap = new Map(projects.map((p) => [p.id, p.name]));
+
+  const createTask = tool({
+    description: `Create a new task for the user in one of their projects.
+Use this when the user asks to add, create, or track a new task.
+Available projects: ${projects.map((p) => `"${p.name}" (id: ${p.id})`).join(", ")}`,
+    inputSchema: z.object({
+      projectId: z
+        .string()
+        .describe("The project ID to add the task to"),
+      title: z.string().describe("Clear, actionable task title"),
+      description: z.string().optional().describe("Additional context or acceptance criteria"),
+      priority: z
+        .enum(["low", "medium", "high", "urgent"])
+        .default("medium")
+        .describe("Task priority"),
+      estimatedMinutes: z.number().int().positive().optional().describe("Time estimate in minutes"),
+      scheduledStart: z
+        .string()
+        .optional()
+        .describe("ISO 8601 date-time to schedule the task. Include if the user mentions a specific time."),
+      dueDate: z
+        .string()
+        .optional()
+        .describe("ISO 8601 date-time for the deadline. Include if the user mentions a deadline."),
+    }),
+    execute: async ({ projectId, title, description, priority, estimatedMinutes, scheduledStart, dueDate }) => {
+      console.log("[AI createTask] called with:", { projectId, title, priority, scheduledStart, dueDate });
+
+      if (!projectMap.has(projectId)) {
+        console.warn("[AI createTask] invalid projectId:", projectId, "available:", [...projectMap.keys()]);
+        return { success: false, error: "Invalid project ID" };
+      }
+
+      const parsedScheduledStart = scheduledStart ? new Date(scheduledStart) : undefined;
+      const parsedDueDate = dueDate ? new Date(dueDate) : undefined;
+
+      const task = await db.task.create({
+        data: {
+          projectId,
+          title,
+          description,
+          priority,
+          estimatedTime: estimatedMinutes ? estimatedMinutes * 60 : undefined,
+          scheduledStart: parsedScheduledStart,
+          dueDate: parsedDueDate,
+          status: "todo",
+          tags: [],
+        },
+        select: {
+          id: true,
+          title: true,
+          priority: true,
+          scheduledStart: true,
+          dueDate: true,
+          estimatedTime: true,
+          description: true,
+          googleEventId: true,
+        },
+      });
+
+      // Sync to Google Calendar if a date was provided
+      if (task.scheduledStart ?? task.dueDate) {
+        const calendarResult = await GoogleCalendarService.createEvent(userId, {
+          title: task.title,
+          description: task.description,
+          scheduledStart: task.scheduledStart,
+          dueDate: task.dueDate,
+          estimatedTime: task.estimatedTime,
+        });
+
+        if (calendarResult.success && calendarResult.eventId) {
+          await db.task.update({
+            where: { id: task.id },
+            data: { googleEventId: calendarResult.eventId },
+          });
+        }
+      }
+
+      return {
+        success: true,
+        message: `Created task "${title}" in "${projectMap.get(projectId)}"${(task.scheduledStart ?? task.dueDate) ? " and synced to Google Calendar" : ""}`,
+        task: { id: task.id, title: task.title, priority: task.priority },
+      };
+    },
+  });
+
+  return { createTask };
+}

@@ -29,7 +29,9 @@ import {
   ExternalLink,
   Flag,
   FolderOpen,
+  Pencil,
   Play,
+  Trash2,
 } from "lucide-react";
 import { useTimerActions } from "~/hooks/use-timer-actions";
 import type { TimerTask } from "~/store/timer-atoms";
@@ -53,11 +55,21 @@ export default function CalendarPage() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [newTaskDate, setNewTaskDate] = useState<Date | null>(null);
+  type TaskItem = NonNullable<typeof tasks>[number];
+  const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
 
+  const utils = api.useUtils();
   const { start, isActive } = useTimerActions();
 
   // Fetch all tasks with due dates
   const { data: tasks, isLoading } = api.task.getAll.useQuery();
+
+  const deleteMutation = api.task.delete.useMutation({
+    onSuccess: () => {
+      void utils.task.getAll.invalidate();
+      setDetailsOpen(false);
+    },
+  });
 
   // Convert tasks to calendar events
   const events = tasks ? tasksToCalendarEvents(tasks) : [];
@@ -203,14 +215,35 @@ export default function CalendarPage() {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              className="flex-1"
+              size="icon"
+              className="shrink-0 text-destructive hover:text-destructive"
+              disabled={deleteMutation.isPending}
               onClick={() => {
-                setDetailsOpen(false);
-                // Could navigate to task page or open edit dialog
+                const taskId = selectedEvent?.resource?.taskId;
+                if (!taskId) return;
+                if (confirm("Delete this task? This cannot be undone.")) {
+                  deleteMutation.mutate({ id: taskId });
+                }
               }}
             >
-              <ExternalLink className="mr-2 h-4 w-4" />
-              View Task
+              <Trash2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                const task = tasks?.find(
+                  (t) => t.id === selectedEvent?.resource?.taskId
+                );
+                if (task) {
+                  setEditingTask(task);
+                  setDetailsOpen(false);
+                  setTaskDialogOpen(true);
+                }
+              }}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit Task
             </Button>
             <Button
               className="flex-1"
@@ -228,15 +261,19 @@ export default function CalendarPage() {
         </DialogContent>
       </Dialog>
 
-      {/* New Task Dialog */}
+      {/* New/Edit Task Dialog */}
       <TaskDialog
         open={taskDialogOpen}
         onOpenChange={(open) => {
           setTaskDialogOpen(open);
-          if (!open) setNewTaskDate(null);
+          if (!open) {
+            setNewTaskDate(null);
+            setEditingTask(null);
+            void utils.task.getAll.invalidate();
+          }
         }}
-        task={null}
-        defaultScheduledStart={newTaskDate ?? undefined}
+        task={editingTask ?? null}
+        defaultScheduledStart={editingTask ? undefined : (newTaskDate ?? undefined)}
       />
     </>
   );
