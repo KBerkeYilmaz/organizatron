@@ -40,6 +40,8 @@ import {
 } from "~/components/ui/sidebar";
 import { AIAssistantDrawer } from "~/components/ai-assistant-drawer";
 import { AIGoalBreakdown } from "~/components/ai-goal-breakdown";
+import { AIProjectPlanner } from "~/components/ai-project-planner";
+import { api } from "~/trpc/react";
 
 const navigation = [
   {
@@ -75,6 +77,9 @@ export function AppSidebar() {
   const { data: session } = useSession();
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [goalBreakdownOpen, setGoalBreakdownOpen] = useState(false);
+  const [plannerOpen, setPlannerOpen] = useState(false);
+
+  const { data: recentProject } = api.project.getMostRecentlyActive.useQuery();
 
   const handleSignOut = async () => {
     await signOut();
@@ -218,12 +223,29 @@ export function AppSidebar() {
           setAiDrawerOpen(false);
           setGoalBreakdownOpen(true);
         }}
+        onProjectPlanner={() => {
+          if (recentProject) {
+            setAiDrawerOpen(false);
+            setPlannerOpen(true);
+          } else {
+            void router.push("/projects");
+          }
+        }}
       />
 
       <AIGoalBreakdown
         open={goalBreakdownOpen}
         onOpenChange={setGoalBreakdownOpen}
       />
+
+      {recentProject && (
+        <AIProjectPlanner
+          open={plannerOpen}
+          onOpenChange={setPlannerOpen}
+          projectId={recentProject.id}
+          projectName={recentProject.name}
+        />
+      )}
     </Sidebar>
   );
 }

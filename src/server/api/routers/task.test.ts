@@ -648,6 +648,7 @@ describe("taskRouter", () => {
 
   describe("updateStatus", () => {
     it("bulk updates task statuses", async () => {
+      prismaMock.task.findMany.mockResolvedValue([]);
       prismaMock.task.updateMany.mockResolvedValue({ count: 3 });
 
       const caller = createTestCaller();

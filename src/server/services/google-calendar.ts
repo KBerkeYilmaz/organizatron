@@ -39,19 +39,24 @@ export class GoogleCalendarService {
     const isExpired =
       new Date(account.expiresAt) <= new Date(Date.now() + 5 * 60 * 1000);
 
-    if (isExpired && account.refreshToken) {
-      const newToken = await this.refreshAccessToken(account.refreshToken);
-      if (newToken) {
-        await db.googleAccount.update({
-          where: { userId },
-          data: {
-            accessToken: newToken.access_token,
-            expiresAt: new Date(Date.now() + newToken.expires_in * 1000),
-          },
-        });
-        return newToken.access_token;
+    if (isExpired) {
+      if (!account.refreshToken) {
+        console.warn("[GoogleCalendar] Access token expired and no refresh token available for user:", userId);
+        return null;
       }
-      return null;
+      const newToken = await this.refreshAccessToken(account.refreshToken);
+      if (!newToken) {
+        console.warn("[GoogleCalendar] Failed to refresh access token for user:", userId);
+        return null;
+      }
+      await db.googleAccount.update({
+        where: { userId },
+        data: {
+          accessToken: newToken.access_token,
+          expiresAt: new Date(Date.now() + newToken.expires_in * 1000),
+        },
+      });
+      return newToken.access_token;
     }
 
     return account.accessToken;

@@ -152,6 +152,9 @@ export function AIProjectPlanner({
   const [actions, setActions] = useState<ToolAction[]>([]);
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
   const [syncToCalendar, setSyncToCalendar] = useState(true);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [showAllActions, setShowAllActions] = useState(false);
+  const ACTIONS_PREVIEW_COUNT = 5;
 
   const utils = api.useUtils();
 
@@ -161,6 +164,7 @@ export function AIProjectPlanner({
       if (result.success && result.data) {
         setPlan(result.data.plan);
         setActions(result.data.actions);
+        setAnalyzeError(null);
         // Select all tasks by default
         if (result.data.plan) {
           setSelectedTasks(new Set(result.data.plan.tasks.map((t) => t.taskId)));
@@ -169,6 +173,8 @@ export function AIProjectPlanner({
         if (result.data.actions.length > 0) {
           void utils.task.getAll.invalidate();
         }
+      } else if (!result.success) {
+        setAnalyzeError(result.error ?? "Analysis failed");
       }
     },
   });
@@ -226,6 +232,8 @@ export function AIProjectPlanner({
     setPlan(null);
     setActions([]);
     setSelectedTasks(new Set());
+    setAnalyzeError(null);
+    setShowAllActions(false);
   };
 
   const selectedCount = selectedTasks.size;
@@ -263,10 +271,10 @@ export function AIProjectPlanner({
                   Analyzing project and taking actions...
                 </p>
               </>
-            ) : analyzeMutation.error ? (
+            ) : analyzeMutation.error ?? analyzeError ? (
               <>
                 <p className="text-destructive mb-4">
-                  {analyzeMutation.error.message}
+                  {analyzeMutation.error?.message ?? analyzeError}
                 </p>
                 <Button onClick={handleAnalyze}>Try Again</Button>
               </>
@@ -295,10 +303,11 @@ export function AIProjectPlanner({
             )}
           </div>
         ) : (
-          <div className="flex-1 min-h-0 flex flex-col py-4">
-            {/* Scrollable content area */}
-            <ScrollArea className="flex-1 pr-4">
-              <div className="space-y-4">
+          <>
+            {/* Scrollable content — wrapper div takes the flex space, ScrollArea fills it */}
+            <div className="flex-1 min-h-0 overflow-hidden">
+            <ScrollArea className="h-full">
+              <div className="space-y-4 py-4 px-4 pr-5">
                 {/* Actions taken by AI */}
                 {actions.length > 0 && (
                   <>
@@ -317,7 +326,7 @@ export function AIProjectPlanner({
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-2">
-                          {actions.map((action, idx) => (
+                          {(showAllActions ? actions : actions.slice(0, ACTIONS_PREVIEW_COUNT)).map((action, idx) => (
                             <div
                               key={idx}
                               className="flex items-start gap-2 text-sm rounded-md bg-green-50 dark:bg-green-950/20 p-2"
@@ -333,6 +342,16 @@ export function AIProjectPlanner({
                               </div>
                             </div>
                           ))}
+                          {actions.length > ACTIONS_PREVIEW_COUNT && (
+                            <button
+                              className="text-xs text-muted-foreground hover:text-foreground transition-colors w-full text-center pt-1"
+                              onClick={() => setShowAllActions((v) => !v)}
+                            >
+                              {showAllActions
+                                ? "Show less"
+                                : `Show ${actions.length - ACTIONS_PREVIEW_COUNT} more actions`}
+                            </button>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -378,53 +397,51 @@ export function AIProjectPlanner({
                 </div>
               </div>
             </ScrollArea>
+            </div>
 
-            {/* Footer info - stays fixed at bottom */}
-            <div className="flex items-center justify-between mt-4 pt-4 border-t shrink-0">
-              <div className="text-sm text-muted-foreground">
-                {selectedCount} of {plan.tasks.length} tasks selected
-                {selectedCount > 0 && (
-                  <span className="ml-2">
-                    ({formatMinutes(totalTime)} total)
-                  </span>
-                )}
+            {/* Sticky footer — always visible, never scrolls away */}
+            <div className="shrink-0 border-t pt-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  {selectedCount} of {plan.tasks.length} tasks selected
+                  {selectedCount > 0 && (
+                    <span className="ml-2">({formatMinutes(totalTime)} total)</span>
+                  )}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="sync-calendar"
+                    checked={syncToCalendar}
+                    onCheckedChange={setSyncToCalendar}
+                  />
+                  <Label htmlFor="sync-calendar" className="text-sm">
+                    Sync to Google Calendar
+                  </Label>
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="sync-calendar"
-                  checked={syncToCalendar}
-                  onCheckedChange={setSyncToCalendar}
-                />
-                <Label htmlFor="sync-calendar" className="text-sm">
-                  Sync to Google Calendar
-                </Label>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => onOpenChange(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleApplySchedule}
+                  disabled={selectedCount === 0 || applyScheduleMutation.isPending}
+                >
+                  {applyScheduleMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Applying...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Apply Schedule
+                    </>
+                  )}
+                </Button>
               </div>
             </div>
-          </div>
-        )}
-
-        {plan && (
-          <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleApplySchedule}
-              disabled={selectedCount === 0 || applyScheduleMutation.isPending}
-            >
-              {applyScheduleMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Applying...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Apply Schedule
-                </>
-              )}
-            </Button>
-          </DialogFooter>
+          </>
         )}
       </DialogContent>
     </Dialog>

@@ -8,7 +8,10 @@ import { Card, CardContent } from "~/components/ui/card";
 import { api } from "~/trpc/react";
 
 export function ProjectsOverview() {
-  const { data: clients, isLoading } = api.clients.getAll.useQuery();
+  const { data: clients, isLoading: clientsLoading } = api.clients.getAll.useQuery();
+  const { data: allProjects, isLoading: projectsLoading } = api.project.getAll.useQuery();
+
+  const isLoading = clientsLoading || projectsLoading;
 
   return (
     <div className="flex flex-col gap-4">
@@ -34,7 +37,11 @@ export function ProjectsOverview() {
       ) : (
         <div className="space-y-3">
           {clients?.map((client) => (
-            <ClientCard key={client.id} client={client} />
+            <ClientCard
+              key={client.id}
+              client={client}
+              projects={allProjects?.filter((p) => p.clientId === client.id)}
+            />
           ))}
         </div>
       )}
@@ -42,9 +49,9 @@ export function ProjectsOverview() {
   );
 }
 
-// Separate component to fetch projects per client
 function ClientCard({
   client,
+  projects,
 }: {
   client: {
     id: string;
@@ -52,11 +59,8 @@ function ClientCard({
     color: string;
     logo: string | null;
   };
+  projects: { id: string; name: string; tasks: { id: string; status: string }[] }[] | undefined;
 }) {
-  const { data: projects } = api.project.getByClientId.useQuery({
-    clientId: client.id,
-  });
-
   return (
     <Card className="group cursor-pointer transition-all duration-200 hover:shadow-md">
       <CardContent className="p-4">

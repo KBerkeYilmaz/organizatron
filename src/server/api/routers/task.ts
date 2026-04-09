@@ -219,55 +219,61 @@ export const taskRouter = createTRPCRouter({
       try {
         const userId = await getCurrentUserId(ctx.db);
         if (userId) {
-          const hasTimeInfo = task.scheduledStart || task.dueDate;
+          // Completed tasks no longer need calendar events
+          if (task.status === "completed" && existingTask?.googleEventId) {
+            await GoogleCalendarService.deleteEvent(userId, existingTask.googleEventId);
+            await ctx.db.task.update({ where: { id }, data: { googleEventId: null } });
+          } else {
+            const hasTimeInfo = task.scheduledStart || task.dueDate;
 
-          if (hasTimeInfo) {
-            // Task has time info - create or update event
-            if (existingTask?.googleEventId) {
-              // Update existing event
-              const result = await GoogleCalendarService.updateEvent(
-                userId,
-                existingTask.googleEventId,
-                {
+            if (hasTimeInfo) {
+              // Task has time info - create or update event
+              if (existingTask?.googleEventId) {
+                // Update existing event
+                const result = await GoogleCalendarService.updateEvent(
+                  userId,
+                  existingTask.googleEventId,
+                  {
+                    title: task.title,
+                    description: task.description,
+                    scheduledStart: task.scheduledStart,
+                    dueDate: task.dueDate,
+                    estimatedTime: task.estimatedTime,
+                  }
+                );
+
+                // If update created a new event (old one was deleted from Google)
+                if (result.success && result.eventId && result.eventId !== existingTask.googleEventId) {
+                  await ctx.db.task.update({
+                    where: { id },
+                    data: { googleEventId: result.eventId },
+                  });
+                }
+              } else {
+                // Create new event
+                const result = await GoogleCalendarService.createEvent(userId, {
                   title: task.title,
                   description: task.description,
                   scheduledStart: task.scheduledStart,
                   dueDate: task.dueDate,
                   estimatedTime: task.estimatedTime,
+                });
+
+                if (result.success && result.eventId) {
+                  await ctx.db.task.update({
+                    where: { id },
+                    data: { googleEventId: result.eventId },
+                  });
                 }
-              );
-
-              // If update created a new event (old one was deleted from Google)
-              if (result.success && result.eventId && result.eventId !== existingTask.googleEventId) {
-                await ctx.db.task.update({
-                  where: { id },
-                  data: { googleEventId: result.eventId },
-                });
               }
-            } else {
-              // Create new event
-              const result = await GoogleCalendarService.createEvent(userId, {
-                title: task.title,
-                description: task.description,
-                scheduledStart: task.scheduledStart,
-                dueDate: task.dueDate,
-                estimatedTime: task.estimatedTime,
+            } else if (existingTask?.googleEventId) {
+              // Both scheduledStart and dueDate were removed - delete event
+              await GoogleCalendarService.deleteEvent(userId, existingTask.googleEventId);
+              await ctx.db.task.update({
+                where: { id },
+                data: { googleEventId: null },
               });
-
-              if (result.success && result.eventId) {
-                await ctx.db.task.update({
-                  where: { id },
-                  data: { googleEventId: result.eventId },
-                });
-              }
             }
-          } else if (existingTask?.googleEventId) {
-            // Both scheduledStart and dueDate were removed - delete event
-            await GoogleCalendarService.deleteEvent(userId, existingTask.googleEventId);
-            await ctx.db.task.update({
-              where: { id },
-              data: { googleEventId: null },
-            });
           }
         }
       } catch (error) {
@@ -316,12 +322,40 @@ export const taskRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const completedAt = input.status === "completed" ? new Date() : null;
 
+      // If completing tasks, clean up their Google Calendar events
+      if (input.status === "completed") {
+        const tasks = await ctx.db.task.findMany({
+          where: { id: { in: input.ids }, googleEventId: { not: null } },
+          select: { googleEventId: true },
+        });
+        const eventIds = tasks
+          .map((t) => t.googleEventId)
+          .filter((id): id is string => id !== null);
+
+        if (eventIds.length > 0) {
+          try {
+            const userId = await getCurrentUserId(ctx.db);
+            if (userId) {
+              await Promise.allSettled(
+                eventIds.map((eventId) =>
+                  GoogleCalendarService.deleteEvent(userId, eventId)
+                )
+              );
+              // Clear googleEventId on completed tasks
+              await ctx.db.task.updateMany({
+                where: { id: { in: input.ids }, googleEventId: { not: null } },
+                data: { googleEventId: null },
+              });
+            }
+          } catch (error) {
+            console.error("[Task.updateStatus] Google Calendar sync error:", error);
+          }
+        }
+      }
+
       return ctx.db.task.updateMany({
         where: { id: { in: input.ids } },
-        data: {
-          status: input.status,
-          completedAt,
-        },
+        data: { status: input.status, completedAt },
       });
     }),
 

@@ -26,7 +26,10 @@ export const projectRouter = createTRPCRouter({
           status: input?.status,
         },
         orderBy: { updatedAt: "desc" },
-        include: { client: true },
+        include: {
+          client: true,
+          tasks: { select: { id: true, status: true } },
+        },
       });
     }),
 
